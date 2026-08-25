@@ -109,21 +109,34 @@ export default function DashboardPage() {
   // Así el % de rendimiento de la asignación es el MISMO que el de la cuenta base.
   // La base de la cuenta incluye el capital agregado al pasar de fase, para que
   // el desempeño se actualice al aportar capital.
+  // Fase mostrada: sigue la selección del Dashboard (fase actual o una histórica
+  // en "modo vista"). Cuando vuelves a una fase anterior, el desempeño se
+  // actualiza a ESA fase.
+  const viewIndex =
+    activePhase?.kind === 'history' && account.rules.type === 'axi'
+      ? account.rules.stages.findIndex((st) => st.label === activePhase.label)
+      : account.current_stage_index
   const axiStage =
-    account.rules.type === 'axi' ? account.rules.stages[account.current_stage_index] : null
+    account.rules.type === 'axi' && viewIndex >= 0 ? account.rules.stages[viewIndex] : null
   const assignMult = axiStage?.multiplier ?? 1
+  // Base de capital de la fase mostrada: en una fase histórica se usa el balance
+  // de entrada guardado en el historial; en la fase actual, el capital con aportes.
+  const viewHist =
+    activePhase?.kind === 'history' && account.rules.type === 'axi'
+      ? axiHistory.find((h) => h.stageLabel === activePhase.label)
+      : null
   const assignBaseCap =
-    account.rules.type === 'axi'
-      ? account.initial_balance + (account.rules.stage_capital_total ?? 0)
-      : account.initial_balance
-  const assignBase = assignBaseCap * assignMult // capital apalancado (con aportes)
-  const assignGain = s.totalPnl * assignMult // ganancia escalada
+    activePhase?.kind === 'history' && account.rules.type === 'axi'
+      ? viewHist?.startBalance ?? account.initial_balance
+      : account.initial_balance +
+        (account.rules.type === 'axi' ? account.rules.stage_capital_total ?? 0 : 0)
+  const assignBase = assignBaseCap * assignMult // capital apalancado
+  const assignGain = s.totalPnl * assignMult // ganancia escalada (P&L de la fase vista)
   const assignEquity = assignBase + assignGain
-  // Rendimiento en %: sobre el capital real de la cuenta (inicial + aportes) →
-  // coincide con el % base.
+  // Rendimiento en %: sobre el capital base de la fase vista → coincide con la
+  // rentabilidad mostrada (mismo %).
   const assignReturn = assignBaseCap > 0 ? (s.totalPnl / assignBaseCap) * 100 : 0
-  const assignDayReturn =
-    assignBaseCap > 0 ? (todayPnl(analysis.days) / assignBaseCap) * 100 : 0
+  const assignDayReturn = assignBaseCap > 0 ? (todayPnl(analysis.days) / assignBaseCap) * 100 : 0
   // Ganancia Mensual Proyectada: lo que cobra el trader por los beneficios del
   // mes en curso sobre la cuenta apalancada, según su profit split de la fase.
   // En Seed el profit split es 0 (no se cobra) → resultado 0.
