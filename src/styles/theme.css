@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   --radius: 12px;
   --radius-sm: 8px;
   --transition: 0.15s ease;
@@ -368,7 +368,7 @@ h4 {
   margin-top: 8px;
 }
 
-/* ---- Tarjetas de estadística ---- */
+/* ---- Tarjetas de estadÃ­stica ---- */
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
@@ -948,7 +948,7 @@ h4 {
   margin-top: 8px;
 }
 
-/* ---- Breaking / celebración ---- */
+/* ---- Breaking / celebraciÃ³n ---- */
 .celebration-overlay {
   position: fixed;
   inset: 0;
@@ -1038,7 +1038,7 @@ h4 {
 }
 
 /* ---- Responsive (celular) ---- */
-@media (max-width: 900px) {
+@media (max-width: 1024px) {
   .sidebar {
     display: none;
   }
@@ -1087,7 +1087,7 @@ h4 {
   }
 }
 
-/* ---- Barra de navegación inferior (móvil) ---- */
+/* ---- Barra de navegaciÃ³n inferior (mÃ³vil) ---- */
 .mobile-nav {
   position: fixed;
   bottom: 0;
@@ -1136,14 +1136,14 @@ h4 {
   box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4);
   margin-top: -18px;
 }
-@media (max-width: 900px) {
+@media (max-width: 1024px) {
   .mobile-nav {
     display: flex;
     align-items: flex-end;
   }
 }
 
-/* ---- Barra lateral off-canvas (móvil) ---- */
+/* ---- Barra lateral off-canvas (mÃ³vil) ---- */
 .mobile-brand-bar {
   display: none;
   align-items: center;
@@ -1151,7 +1151,7 @@ h4 {
   padding: 10px 14px;
   border-bottom: 1px solid var(--border);
 }
-@media (max-width: 900px) {
+@media (max-width: 1024px) {
   .mobile-brand-bar {
     display: flex;
   }
@@ -1220,7 +1220,7 @@ h4 {
   color: var(--text-muted);
 }
 
-/* ---- Pestañas de la cuenta ---- */
+/* ---- PestaÃ±as de la cuenta ---- */
 .account-tabs-header {
   margin-bottom: 16px;
 }
@@ -1295,11 +1295,11 @@ h4 {
 }
 
 /* ============================================================
-   RESPONSIVE — Celular (pantallas pequeñas)
+   RESPONSIVE â€” Celular (pantallas pequeÃ±as)
    ============================================================ */
 
 /* --- Tablets y pantallas medianas: sidebar off-canvas --- */
-@media (max-width: 900px) {
+@media (max-width: 1024px) {
   .main {
     padding: 10px 12px 84px;
   }
@@ -1319,7 +1319,7 @@ h4 {
   }
 }
 
-/* --- Teléfonos (<=640px): ajustes finos --- */
+/* --- TelÃ©fonos (<=640px): ajustes finos --- */
 @media (max-width: 640px) {
   html {
     font-size: 15px;
@@ -1328,7 +1328,7 @@ h4 {
     padding: 8px 10px 76px;
   }
 
-  /* Pestañas de cuenta: scroll horizontal en vez de desbordar */
+  /* PestaÃ±as de cuenta: scroll horizontal en vez de desbordar */
   .account-tabs-nav {
     flex-wrap: nowrap;
     overflow-x: auto;
@@ -1358,7 +1358,7 @@ h4 {
     width: 100%;
   }
 
-  /* Tarjetas de estadística: 2 por fila en compacto */
+  /* Tarjetas de estadÃ­stica: 2 por fila en compacto */
   .stat-grid {
     grid-template-columns: repeat(2, 1fr);
     gap: 10px;
@@ -1391,7 +1391,7 @@ h4 {
     padding-bottom: env(safe-area-inset-bottom);
   }
 
-  /* Entradas más cómodas al tacto */
+  /* Entradas mÃ¡s cÃ³modas al tacto */
   .input,
   .select,
   .textarea {
@@ -1438,7 +1438,7 @@ h4 {
     padding: 6px 8px;
   }
 
-  /* Encabezados de página y botón primario de acción */
+  /* Encabezados de pÃ¡gina y botÃ³n primario de acciÃ³n */
   .page-title {
     font-size: 19px;
   }
@@ -1462,7 +1462,7 @@ h4 {
   }
 }
 
-/* --- Teléfonos muy pequeños (<=400px) --- */
+/* --- TelÃ©fonos muy pequeÃ±os (<=400px) --- */
 @media (max-width: 400px) {
   .stat-grid {
     grid-template-columns: 1fr;
@@ -1473,5 +1473,44 @@ h4 {
   .calendar-weekday {
     font-size: 9px;
   }
+}
+
+
+
+/* ============================================================
+   REFUERZO ROBUSTO — garantiza layout fluido en pantallas chicas
+   y corrige la vista de Cuentas (tarjetas a ancho completo).
+   ============================================================ */
+@media (max-width: 1024px) {
+  .app-shell {
+    display: block;
+  }
+  .sidebar {
+    display: none;
+  }
+  .main {
+    margin-left: 0;
+    width: 100%;
+    max-width: 100%;
+    padding: 12px 14px 96px;
+  }
+  .mobile-brand-bar {
+    display: flex;
+  }
+}
+
+@media (max-width: 640px) {
+  .accounts-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.accounts-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  width: 100%;
+}
+.account-card {
+  width: 100%;
 }
 
