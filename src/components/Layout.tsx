@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useLayoutEffect, useState } from 'react'
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useData } from '../contexts/DataContext'
@@ -104,7 +104,8 @@ function AppLayout() {
   // Marca el color de marca global según la cuenta activa de la ruta: rojo Axi
   // para las cuentas del broker Axi, sin atributo (azul) para el resto. El CSS
   // lee `data-brand='axi'` en <html> para teñir los acentos de la app.
-  useEffect(() => {
+  // Se usa useLayoutEffect para aplicarlo ANTES del pintado y evitar parpadeos.
+  useLayoutEffect(() => {
     const m = location.pathname.match(/^\/cuenta\/([^/]+)/)
     const active = m ? accounts.find((a) => a.id === m[1]) : null
     const isAxi =
