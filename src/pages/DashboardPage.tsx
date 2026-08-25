@@ -31,6 +31,21 @@ export default function DashboardPage() {
         : null,
     [account, trades, payouts, tradesForActive],
   )
+  // Análisis con TODOS los trades de la cuenta (sin filtrar por fase activa),
+  // para que el "Balance actual" coincida con el panel "Capital de la cuenta"
+  // de la pestaña Etapas (balance total: trades de todas las fases + capital
+  // agregado − payouts).
+  const totalAnalysis = useMemo(
+    () =>
+      account
+        ? analyzeAccount(
+            account,
+            trades.filter((t) => t.account_id === account.id),
+            payouts.filter((p) => p.account_id === account.id),
+          )
+        : null,
+    [account, trades, payouts],
+  )
   if (!account || !analysis) {
     return (
       <EmptyState icon="📊" title="Cuenta no encontrada">
@@ -95,7 +110,7 @@ export default function DashboardPage() {
   return (
     <div className="stack">
       <div className="dash-hero">
-        <HeroStat label="Balance actual" value={money(s.currentBalance)} big />
+        <HeroStat label="Balance actual" value={money(totalAnalysis?.stats.currentBalance ?? s.currentBalance)} big />
         <HeroStat label="Rentabilidad" value={`${rentabilidad.toFixed(2)}%`} pos={s.totalPnl > 0} />
         <HeroStat
           label="P&L neto"

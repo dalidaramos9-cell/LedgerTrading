@@ -137,7 +137,10 @@ export default function StagesPage() {
             </span>
           </div>
           <div className="stat-grid">
-            <Mini label="Balance" value={money(phaseAnalysis.stats.currentBalance)} />
+            <Mini
+              label="Balance"
+              value={money(activePhase?.kind === 'history' ? phaseAnalysis.stats.currentBalance : balanceNow)}
+            />
             <Mini label="P&L" value={signedMoney(phaseAnalysis.stats.totalPnl)} pos={phaseAnalysis.stats.totalPnl > 0} />
             <Mini label="Operaciones" value={String(phaseAnalysis.stats.totalTrades)} />
             <Mini label="Win rate" value={`${phaseAnalysis.stats.winRate.toFixed(1)}%`} />
