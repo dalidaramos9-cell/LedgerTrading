@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useData } from '../contexts/DataContext'
 import { useRouteAccount } from '../contexts/AccountRouteContext'
 import { useActivePhase } from '../contexts/ActivePhaseContext'
@@ -36,7 +36,18 @@ export default function StagesPage() {
     )
   }, [account, trades, payouts, tradesForActive, activePhase])
 
-  const { celebrated, dismiss } = useStageAutoAdvance(account, analysis)
+  const { celebrated, dismiss, pendingAdvance, confirmAdvance, cancelAdvance } = useStageAutoAdvance(account, analysis)
+  const [advanceEndDate, setAdvanceEndDate] = useState('')
+  const [advanceNextStartDate, setAdvanceNextStartDate] = useState('')
+
+  // Al detectar el avance, pre-llenar el formulario con las fechas sugeridas
+  // (hoy para el fin, y mañana para el inicio de la siguiente etapa).
+  useEffect(() => {
+    if (pendingAdvance) {
+      setAdvanceEndDate(pendingAdvance.suggestedEndDate)
+      setAdvanceNextStartDate(pendingAdvance.suggestedNextStartDate)
+    }
+  }, [pendingAdvance])
 
   if (!account || !analysis) {
     return (
@@ -309,6 +320,49 @@ export default function StagesPage() {
           </div>
         </div>
       </Modal>
+
+      {pendingAdvance ? (
+        <Modal
+          open
+          onClose={cancelAdvance}
+          title="Finalizar etapa · confirmar fechas"
+        >
+          <div className="stack">
+            <p className="muted" style={{ fontSize: 13, margin: 0 }}>
+              Al completar <strong>{pendingAdvance.stageLabel}</strong>, define cuándo terminó y cuándo
+              arranca <strong>{pendingAdvance.nextLabel ?? 'la siguiente'}</strong> para que sus
+              rangos no se solapen y cada operación caiga en una sola etapa.
+            </p>
+            <Field label="Fecha de finalización de la etapa actual">
+              <input
+                type="date"
+                className="input"
+                value={advanceEndDate}
+                onChange={(e) => setAdvanceEndDate(e.target.value)}
+              />
+            </Field>
+            <Field label="Fecha de inicio de la siguiente etapa">
+              <input
+                type="date"
+                className="input"
+                value={advanceNextStartDate}
+                min={advanceEndDate}
+                onChange={(e) => setAdvanceNextStartDate(e.target.value)}
+              />
+            </Field>
+            <div className="form-actions">
+              <Button variant="subtle" onClick={cancelAdvance}>Cancelar</Button>
+              <Button
+                variant="primary"
+                disabled={!advanceEndDate || !advanceNextStartDate || advanceNextStartDate < advanceEndDate}
+                onClick={() => confirmAdvance(advanceEndDate, advanceNextStartDate)}
+              >
+                Confirmar avance
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      ) : null}
 
       {celebrated ? <CelebrationModal data={celebrated} onClose={dismiss} /> : null}
     </div>

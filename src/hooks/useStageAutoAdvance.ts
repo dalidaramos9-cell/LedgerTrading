@@ -3,47 +3,73 @@ import { Account } from '../lib/types'
 import { AccountAnalysis } from '../lib/engine'
 import { useData } from '../contexts/DataContext'
 
-// Avance automático de etapas. Aplica a todos los programas:
-// Fondeo de Futuros, Fondeo CFD y Axi Select. Al alcanzar el objetivo de la
-// etapa actual, la cuenta sube sola, se reinicia el punto de partida y se
-// muestra el modal de celebración.
+// Datos del avance pendiente: la etapa actual ya cumplió su objetivo, pero el
+// usuario debe confirmar las fechas (finalización de la etapa actual e inicio
+// de la siguiente) para cerrar el rango sin solapar trades.
+export interface PendingAdvance {
+  stageLabel: string
+  nextLabel: string | null
+  nextIndex: number
+  suggestedEndDate: string // "YYYY-MM-DD"
+  suggestedNextStartDate: string // "YYYY-MM-DD"
+}
+
+// Avance de etapas con confirmación de fechas. Cuando una etapa cumple su
+// objetivo, NO avanza sola: expone un "pendingAdvance" para que la UI pida
+// la fecha de finalización de la etapa actual y la de inicio de la siguiente.
 export function useStageAutoAdvance(account: Account | null, analysis: AccountAnalysis | null) {
   const { updateAccount } = useData()
   const [celebrated, setCelebrated] = useState<ReturnType<typeof toCelebration> | null>(null)
+  const [pendingAdvance, setPendingAdvance] = useState<PendingAdvance | null>(null)
   const advancing = useRef(false)
 
   useEffect(() => {
-    if (!account || !analysis || advancing.current) return
-
+    if (!account || !analysis || pendingAdvance || advancing.current) return
     const pending = analysis.stages.find((s) => s.needsAdvance && !s.isComplete)
     if (!pending) return
+    // No avanzamos aún: pedimos las fechas de finalización/inicio.
+    advancing.current = true
+    const nextAdvance = analysis.stages[pending.stageIndex + 1]
+    const endDate = new Date()
+    const nextStart = new Date()
+    nextStart.setDate(endDate.getDate() + 1)
+    setPendingAdvance({
+      stageLabel: pending.stageLabel,
+      nextLabel: nextAdvance?.stageLabel ?? null,
+      nextIndex: pending.stageIndex + 1,
+      suggestedEndDate: toDateStr(endDate),
+      suggestedNextStartDate: toDateStr(nextStart),
+    })
+    setTimeout(() => {
+      advancing.current = false
+    }, 800)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [account, analysis, pendingAdvance])
 
-    const nextIndex = pending.stageIndex + 1
-    // Al entrar a la nueva etapa se reinicia el punto de partida:
-    // el nuevo stage_start_pnl = P&L acumulado actual (la etapa arranca en cero).
+  // Confirma el avance con las fechas elegidas por el usuario.
+  async function confirmAdvance(endDateStr: string, nextStartDateStr: string) {
+    if (!account || !analysis || !pendingAdvance) return
+    const { nextIndex } = pendingAdvance
+    const endIso = new Date(endDateStr + 'T12:00:00').toISOString()
+    const nextStartIso = new Date(nextStartDateStr + 'T12:00:00').toISOString()
+
     const updated: Account = {
       ...account,
       current_stage_index: nextIndex,
       stage_start_pnl: analysis.stats.totalPnl,
     }
-    // Para Axi Select: marca las etapas como completada/actual/pendiente y
-    // guarda el resumen de la fase completada en el historial (no se pierde
-    // el desempeño de la fase anterior al reiniciar el conteo).
     if (account.rules.type === 'axi') {
       const stages = account.rules.stages.map((st, i) => {
         if (i < nextIndex) return { ...st, status: 'completed' as const }
         if (i === nextIndex) return { ...st, status: 'current' as const }
         return { ...st, status: 'pending' as const }
       })
-      const prevStage = account.rules.stages[pending.stageIndex]
+      const prevStage = account.rules.stages[pendingAdvance.nextIndex - 1]
       const netPnl = Math.round((analysis.stats.totalPnl - (account.stage_start_pnl ?? 0)) * 100) / 100
-      // Fecha de entrada a la fase que se acaba de completar (para el historial).
-      const prevStartDate = account.rules.current_stage_start_date ?? account.start_date
-      const nowIso = new Date().toISOString()
       const history = [
         ...(account.rules.stage_history ?? []),
         {
-          stageLabel: pending.stageLabel,
+          stageLabel: pendingAdvance.stageLabel,
           minEquity: prevStage?.minEquity ?? 0,
           startBalance: Math.round(account.rules.current_stage_balance ?? account.initial_balance),
           endBalance: Math.round(analysis.stats.currentBalance),
@@ -52,36 +78,46 @@ export function useStageAutoAdvance(account: Account | null, analysis: AccountAn
           winRate: analysis.stats.winRate,
           profitFactor: analysis.stats.profitFactor,
           capitalAdded: 0,
-          startDate: prevStartDate,
-          endDate: nowIso,
+          startDate: account.rules.current_stage_start_date ?? account.start_date,
+          endDate: endIso,
         },
       ]
-      // La nueva fase arranca con el balance actual; se setea su fecha de inicio
-      // (el usuario puede corregirla manualmente para registrar operaciones pasadas).
       updated.rules = {
         ...account.rules,
         stages,
         stage_history: history,
-        current_stage_start_date: nowIso,
+        current_stage_start_date: nextStartIso,
         current_stage_balance: analysis.stats.currentBalance,
       }
     }
 
-    advancing.current = true
-    setCelebrated(toCelebration(pending.stageLabel, nextIndex, account, analysis))
-    updateAccount(updated)
-      .catch(() => {
-        /* si falla, reintentará al próximo render */
-      })
-      .finally(() => {
-        setTimeout(() => {
-          advancing.current = false
-        }, 800)
-      })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [account, analysis])
+    setPendingAdvance(null)
+    setCelebrated(toCelebration(pendingAdvance.stageLabel, nextIndex, account, analysis))
+    try {
+      await updateAccount(updated)
+    } catch {
+      /* si falla, el estado de la cuenta no cambió; se reintenta */
+    }
+  }
 
-  return { celebrated, dismiss: () => setCelebrated(null) }
+  function cancelAdvance() {
+    setPendingAdvance(null)
+  }
+
+  return {
+    celebrated,
+    pendingAdvance,
+    confirmAdvance,
+    cancelAdvance,
+    dismiss: () => setCelebrated(null),
+  }
+}
+
+function toDateStr(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
 }
 
 function toCelebration(
@@ -101,4 +137,5 @@ function toCelebration(
     target: nextStage && nextStage.targetBalance > 0 ? nextStage.targetBalance : null,
   }
 }
+
 
