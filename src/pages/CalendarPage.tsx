@@ -130,9 +130,18 @@ export default function CalendarPage() {
             {['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].map((d) => (
               <div key={d} className="calendar-weekday">{d}</div>
             ))}
-            {cells.map((c, i) =>
-              c.day === null ? (
-                <div key={i} className="calendar-cell outside" />
+            {cells.map((c, i) => {
+              // Fines de semana (sábado 6 / domingo 0): se muestran en gris e inhabilitados.
+              const dow = c.date ? new Date(c.date + 'T12:00:00').getDay() : -1
+              const isWeekend = dow === 0 || dow === 6
+              return c.day === null || isWeekend ? (
+                <div
+                  key={i}
+                  className={`calendar-cell ${isWeekend ? 'weekend' : 'outside'}`}
+                  title={isWeekend ? 'Fin de semana — no hay operaciones' : undefined}
+                >
+                  {c.day !== null ? <span className="calendar-daynum">{c.day}</span> : null}
+                </div>
               ) : (
                 <div
                   key={i}
@@ -147,8 +156,8 @@ export default function CalendarPage() {
                     </span>
                   ) : null}
                 </div>
-              ),
-            )}
+              )
+            })}
           </div>
         </div>
 

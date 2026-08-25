@@ -338,18 +338,24 @@ function RuleStatusUSD({ account }: { account: NonNullable<ReturnType<typeof use
   }
 
   const initialBalance = account.initial_balance
+  // Base para los límites en $: para Axi, se usa el equity mínimo de la fase actual
+  // (el drawdown se mide sobre el capital de la fase, no sobre el inicial global).
+  const ddBase =
+    account.rules.type === 'axi'
+      ? account.rules.stages[account.current_stage_index]?.minEquity ?? initialBalance
+      : initialBalance
 
   // Límite de pérdida diaria en $ (pérdida de hoy vs. límite en $)
   const todayPnl =
     analysis?.days.find((d) => d.date === new Date().toISOString().slice(0, 10))?.pnl ?? 0
-  const dailyLimitUSD = (initialBalance * rules.dailyLoss.allowedPct) / 100
+  const dailyLimitUSD = (ddBase * rules.dailyLoss.allowedPct) / 100
   const dailyUsedUSD = Math.abs(todayPnl)
   const dailyUsedOfLimit = dailyLimitUSD > 0 ? (dailyUsedUSD / dailyLimitUSD) * 100 : 0
 
   // Max drawdown en $: drawdown desde la base vs. límite en $
   const currentBalance = analysis?.stats.currentBalance ?? initialBalance
-  const currentDD = Math.max(0, initialBalance - currentBalance)
-  const ddLimitUSD = (initialBalance * rules.maxDrawdown.limitPct) / 100
+  const currentDD = Math.max(0, ddBase - currentBalance)
+  const ddLimitUSD = (ddBase * rules.maxDrawdown.limitPct) / 100
   const ddUsedOfLimit = ddLimitUSD > 0 ? (currentDD / ddLimitUSD) * 100 : 0
 
   // Consistencia (solo Futuros): la regla es en %

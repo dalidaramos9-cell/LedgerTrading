@@ -405,7 +405,8 @@ function computeRules(
     consistencyRulePct = account.rules.consistencyPct
     if (account.rules.ddType === 'trailing-eod') ddBase = peak || initialBalance
   } else if (account.rules.type === 'axi') {
-    const cur = account.rules.stages.find((s) => s.status === 'current' || s.status === 'completed')
+    // Usa la fase ACTUAL (por índice), no la primera que esté completada/actual.
+    const cur = account.rules.stages[account.current_stage_index]
     if (!cur) return null
     maxDDPct = cur.maxLossPct
     dailyAllowedPct = maxDDPct

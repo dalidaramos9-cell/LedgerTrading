@@ -783,6 +783,15 @@ h4 {
   height: 8px;
   border-radius: 50%;
 }
+.calendar-cell.weekend {
+  background: var(--bg-elev-2);
+  opacity: 0.5;
+  cursor: not-allowed;
+  border-style: dashed;
+}
+.calendar-cell.weekend .calendar-daynum {
+  color: var(--text-muted);
+}
 .calendar-week-summary {
   font-size: 11px;
   color: var(--text-muted);

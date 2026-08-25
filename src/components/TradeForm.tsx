@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Modal, Field, Button } from './ui'
 import { useData } from '../contexts/DataContext'
-import { SESSIONS, DIRECTIONS, Trade } from '../lib/types'
+import { SESSIONS, DIRECTIONS, Trade, INSTRUMENTS, INSTRUMENT_OTHER } from '../lib/types'
 import { isoDate } from '../lib/fmt'
 
 // Devuelve "YYYY-MM-DD" respetando el día literal sin saltos de zona horaria.
@@ -29,6 +29,7 @@ export default function TradeForm({
   const { addTrade, updateTrade } = useData()
   const [date, setDate] = useState(isoDate(new Date()))
   const [instrument, setInstrument] = useState('')
+  const [otherInstrument, setOtherInstrument] = useState('')
   const [direction, setDirection] = useState<'long' | 'short'>('long')
   const [session, setSession] = useState<(typeof SESSIONS)[number]['value']>('london')
   const [rPlanned, setRPlanned] = useState('1')
@@ -44,7 +45,9 @@ export default function TradeForm({
     setErr(null)
     if (initial) {
       setDate(toDateInput(initial.date))
-      setInstrument(initial.instrument)
+      const init = initial.instrument
+      setInstrument(INSTRUMENTS.includes(init) ? init : INSTRUMENT_OTHER)
+      setOtherInstrument(INSTRUMENTS.includes(init) ? '' : init === 'Sin instrumento' ? '' : init)
       setDirection(initial.direction)
       setSession(initial.session)
       setRPlanned(String(initial.r_planned))
@@ -54,7 +57,8 @@ export default function TradeForm({
       setNotes(initial.notes)
     } else {
       setDate(toDateInput(defaultDate ?? new Date().toISOString()))
-      setInstrument('')
+      setInstrument('MNQ')
+      setOtherInstrument('')
       setDirection('long')
       setSession('london')
       setRPlanned('1')
@@ -89,10 +93,13 @@ export default function TradeForm({
       setSaving(false)
       return
     }
+    let finalInstrument =
+      instrument === INSTRUMENT_OTHER ? otherInstrument.trim() : instrument.trim()
+    if (!finalInstrument) finalInstrument = 'Sin instrumento'
     const payload = {
       account_id: accountId,
       date: new Date(date + 'T12:00:00').toISOString(),
-      instrument: instrument.trim() || 'Sin instrumento',
+      instrument: finalInstrument,
       direction,
       session,
       r_planned: Number.isNaN(parseFloat(rPlanned)) ? 0 : parseFloat(rPlanned),
@@ -136,7 +143,28 @@ export default function TradeForm({
             <input type="date" className="input" value={date} onChange={(e) => setDate(e.target.value)} required />
           </Field>
           <Field label="Instrumento">
-            <input className="input" placeholder="EJ: EURUSD, NQ, XAUUSD" value={instrument} onChange={(e) => setInstrument(e.target.value)} />
+            <select
+              className="select"
+              value={INSTRUMENTS.includes(instrument) ? instrument : INSTRUMENT_OTHER}
+              onChange={(e) => {
+                setInstrument(e.target.value)
+                if (e.target.value !== INSTRUMENT_OTHER) setOtherInstrument('')
+              }}
+            >
+              {INSTRUMENTS.map((ins) => (
+                <option key={ins} value={ins}>{ins}</option>
+              ))}
+              <option value={INSTRUMENT_OTHER}>{INSTRUMENT_OTHER}</option>
+            </select>
+            {instrument === INSTRUMENT_OTHER ? (
+              <input
+                className="input"
+                placeholder="Escribe el activo"
+                value={otherInstrument}
+                onChange={(e) => setOtherInstrument(e.target.value)}
+                style={{ marginTop: 6 }}
+              />
+            ) : null}
           </Field>
           <Field label="Dirección">
             <select className="select" value={direction} onChange={(e) => setDirection(e.target.value as 'long' | 'short')}>
