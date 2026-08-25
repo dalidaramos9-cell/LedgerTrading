@@ -482,7 +482,16 @@ function RuleStatusUSD({ account }: { account: NonNullable<ReturnType<typeof use
 
   // Max drawdown en $: drawdown desde la base vs. límite en $
   const currentBalance = analysis?.stats.currentBalance ?? initialBalance
-  const currentDD = Math.max(0, ddBase - currentBalance)
+  // Para Axi, el drawdown de la fase se mide SOLO por el desempeño dentro de la
+  // fase actual (se reinicia al cambiar de fase): parte del balance con el que se
+  // entró a esta fase y se suma únicamente el P&L generado dentro de la fase.
+  let currentDDBalance = currentBalance
+  if (account.rules.type === 'axi') {
+    const stageStartBalance = account.rules.current_stage_balance ?? initialBalance
+    const stageNetPnl = (analysis?.stats.totalPnl ?? 0) - (account.stage_start_pnl ?? 0)
+    currentDDBalance = stageStartBalance + stageNetPnl
+  }
+  const currentDD = Math.max(0, ddBase - currentDDBalance)
   const ddLimitUSD = (ddBase * rules.maxDrawdown.limitPct) / 100
   const ddUsedOfLimit = ddLimitUSD > 0 ? (currentDD / ddLimitUSD) * 100 : 0
 
