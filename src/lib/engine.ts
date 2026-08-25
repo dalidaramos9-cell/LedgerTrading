@@ -116,6 +116,7 @@ export interface AccountAnalysis {
   rDistribution: RDistribution[]
   rules: RuleState | null
   stages: StageProgress[]
+  capitalTotal: number
   payouts: { totalGross: number; profitSplitPct: number; totalYours: number; totalPaid: number; totalPending: number; count: number }
 }
 
@@ -306,7 +307,13 @@ export function analyzeAccount(
   // ---- reglas y etapas ----
   const rules = computeRules(account, days, equity, peak, account.initial_balance)
   const balanceAtEnd = bal
-  const liveBalance = balanceAtEnd - sortedPayouts.reduce((s, p) => s + p.gross, 0)
+  // El equity actual incluye el capital agregado por fases (Axi), que NO es
+  // ganancia de trading pero sí forma parte del saldo real de la cuenta.
+  const capitalTotal =
+    account.type === 'axi' && account.rules.type === 'axi'
+      ? account.rules.stage_capital_total ?? 0
+      : 0
+  const liveBalance = balanceAtEnd + capitalTotal - sortedPayouts.reduce((s, p) => s + p.gross, 0)
   const stages = computeStages(account, totalPnl)
 
   // ---- payouts ----
@@ -362,6 +369,7 @@ export function analyzeAccount(
     rDistribution,
     rules,
     stages,
+    capitalTotal,
     payouts: {
       totalGross: fmt(totalGross),
       profitSplitPct,

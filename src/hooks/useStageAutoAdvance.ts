@@ -26,14 +26,34 @@ export function useStageAutoAdvance(account: Account | null, analysis: AccountAn
       current_stage_index: nextIndex,
       stage_start_pnl: analysis.stats.totalPnl,
     }
-    // Para Axi Select, marca las etapas como completada/actual/pendiente.
+    // Para Axi Select: marca las etapas como completada/actual/pendiente y
+    // guarda el resumen de la fase completada en el historial (no se pierde
+    // el desempeño de la fase anterior al reiniciar el conteo).
     if (account.rules.type === 'axi') {
       const stages = account.rules.stages.map((st, i) => {
         if (i < nextIndex) return { ...st, status: 'completed' as const }
         if (i === nextIndex) return { ...st, status: 'current' as const }
         return { ...st, status: 'pending' as const }
       })
-      updated.rules = { ...account.rules, stages }
+      const prevStage = account.rules.stages[pending.stageIndex]
+      const netPnl = Math.round((analysis.stats.totalPnl - (account.stage_start_pnl ?? 0)) * 100) / 100
+      const history = [
+        ...(account.rules.stage_history ?? []),
+        {
+          stageLabel: pending.stageLabel,
+          minEquity: prevStage?.minEquity ?? 0,
+          startBalance: Math.round(account.rules.current_stage_balance ?? account.initial_balance),
+          endBalance: Math.round(analysis.stats.currentBalance),
+          netPnl,
+          trades: analysis.stats.totalTrades,
+          winRate: analysis.stats.winRate,
+          profitFactor: analysis.stats.profitFactor,
+          capitalAdded: 0,
+          startDate: account.start_date,
+          endDate: new Date().toISOString(),
+        },
+      ]
+      updated.rules = { ...account.rules, stages, stage_history: history }
     }
 
     advancing.current = true

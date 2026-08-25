@@ -1,17 +1,19 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useData } from '../contexts/DataContext'
 import { useRouteAccount } from '../contexts/AccountRouteContext'
 import { analyzeAccount } from '../lib/engine'
 import { money, signedMoney } from '../lib/fmt'
 import { useStageAutoAdvance } from '../hooks/useStageAutoAdvance'
 import CelebrationModal from '../components/CelebrationModal'
-import { Badge, ProgressBar, EmptyState } from '../components/ui'
+import { Badge, ProgressBar, EmptyState, Button, Modal, Field } from '../components/ui'
 
 // Pestaña "Etapas": muestra el estado de las reglas del programa (en dólares)
 // y el progreso de las etapas de la cuenta activa.
 export default function StagesPage() {
   const account = useRouteAccount()
-  const { trades, payouts } = useData()
+  const { trades, payouts, updateAccount } = useData()
+  const [capitalOpen, setCapitalOpen] = useState(false)
+  const [capitalAmount, setCapitalAmount] = useState('')
 
   const analysis = useMemo(() => {
     if (!account) return null
@@ -30,6 +32,43 @@ export default function StagesPage() {
         Elige una cuenta de la barra lateral para ver sus reglas y etapas.
       </EmptyState>
     )
+  }
+
+  // Monto sugerido para llegar al equity mínimo de la etapa actual (si falta).
+  const currentStage = account.rules.type === 'axi' ? account.rules.stages[account.current_stage_index] : null
+  const minEquity = currentStage?.minEquity ?? 0
+  const balanceNow = analysis.stats.currentBalance
+  const suggestedCapital = minEquity > 0 ? Math.max(0, minEquity - balanceNow) : 0
+  // Acceso tipado a los datos de capital e historial de Axi.
+  const axiCapital =
+    account.type === 'axi' && account.rules.type === 'axi'
+      ? account.rules.stage_capital_total ?? 0
+      : 0
+  const axiHistory =
+    account.type === 'axi' && account.rules.type === 'axi'
+      ? account.rules.stage_history ?? []
+      : []
+
+  async function addCapital() {
+    const amt = parseFloat(capitalAmount)
+    if (!account || Number.isNaN(amt) || amt <= 0) return
+    if (!(account.rules.type === 'axi')) return
+    const updated = {
+      ...account,
+      rules: {
+        ...account.rules,
+        stage_capital_total: (account.rules.stage_capital_total ?? 0) + amt,
+        current_stage_balance:
+          (account.rules.current_stage_balance ?? account.initial_balance) + amt,
+      },
+    }
+    try {
+      await updateAccount(updated)
+      setCapitalOpen(false)
+      setCapitalAmount('')
+    } catch {
+      /* ignorar */
+    }
   }
 
   return (
@@ -82,6 +121,95 @@ export default function StagesPage() {
           </div>
         )}
       </div>
+
+      {account.type === 'axi' && account.rules.type === 'axi' ? (
+        <>
+          <div className="panel">
+            <div className="panel-head">
+              <span className="panel-title">Capital de la cuenta</span>
+            </div>
+            <div className="stage-stat-row">
+              <span>Balance actual</span>
+              <strong>{money(balanceNow)}</strong>
+            </div>
+            <div className="stage-stat-row" style={{ marginTop: 6 }}>
+              <span>Equity mínimo etapa actual («{currentStage?.label ?? ''}»)</span>
+              <strong>{money(minEquity)}</strong>
+            </div>
+            <div className="stage-stat-row" style={{ marginTop: 6 }}>
+              <span>Capital agregado en total</span>
+              <strong style={{ color: 'var(--text-muted)' }}>{money(axiCapital)}</strong>
+            </div>
+            <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <Button variant="primary" sm onClick={() => setCapitalOpen(true)}>
+                + Agregar capital
+              </Button>
+              {suggestedCapital > 0 ? (
+                <span className="muted" style={{ fontSize: 13 }}>
+                  Falta {money(suggestedCapital)} para cumplir el mínimo de esta etapa.
+                </span>
+              ) : null}
+            </div>
+          </div>
+
+          {axiHistory.length > 0 ? (
+            <div className="panel">
+              <div className="panel-head">
+                <span className="panel-title">Historial de fases completadas</span>
+              </div>
+              <div className="table-wrap">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Fase</th>
+                      <th className="num">Balance final</th>
+                      <th className="num">P&L</th>
+                      <th className="num">Operaciones</th>
+                      <th className="num">Win rate</th>
+                      <th className="num">Capital agreg.</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {axiHistory.map((h) => (
+                      <tr key={h.stageLabel}>
+                        <td><strong>{h.stageLabel}</strong></td>
+                        <td className="num">{money(h.endBalance)}</td>
+                        <td className={`num ${h.netPnl >= 0 ? 'pos' : 'neg'}`}>{signedMoney(h.netPnl)}</td>
+                        <td className="num">{h.trades}</td>
+                        <td className="num">{h.winRate.toFixed(0)}%</td>
+                        <td className="num">{h.capitalAdded > 0 ? money(h.capitalAdded) : '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : null}
+        </>
+      ) : null}
+
+      <Modal open={capitalOpen} onClose={() => setCapitalOpen(false)} title="Agregar capital (Axi Select)">
+        <div className="stack">
+          <Field label={`Monto a agregar${suggestedCapital > 0 ? ` (sugerido: ${money(suggestedCapital)})` : ''}`}>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              className="input"
+              placeholder="0.00"
+              value={capitalAmount}
+              onChange={(e) => setCapitalAmount(e.target.value)}
+            />
+          </Field>
+          <Field label="Equity mínimo de la etapa actual">
+            <div className="input" style={{ pointerEvents: 'none' }}>{money(minEquity)}</div>
+          </Field>
+          <div className="form-actions">
+            <Button variant="subtle" onClick={() => setCapitalOpen(false)}>Cancelar</Button>
+            <Button variant="primary" onClick={addCapital}>Aplicar capital</Button>
+          </div>
+        </div>
+      </Modal>
 
       {celebrated ? <CelebrationModal data={celebrated} onClose={dismiss} /> : null}
     </div>

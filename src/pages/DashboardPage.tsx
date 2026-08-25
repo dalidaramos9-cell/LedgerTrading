@@ -38,6 +38,8 @@ export default function DashboardPage() {
   }
 
   const s = analysis.stats
+  // Rentabilidad tomando en cuenta el capital total aportado (inicial + agregado).
+  const rentabilidad = (s.totalPnl / Math.max(account.initial_balance + analysis.capitalTotal, 1)) * 100
   const equityData = analysis.equity.map((p) => ({
     label: p.date.slice(5),
     balance: p.balance,
@@ -92,11 +94,7 @@ export default function DashboardPage() {
     <div className="stack">
       <div className="dash-hero">
         <HeroStat label="Balance actual" value={money(s.currentBalance)} big />
-        <HeroStat
-          label="Rentabilidad"
-          value={`${((s.totalPnl / account.initial_balance) * 100).toFixed(2)}%`}
-          pos={s.totalPnl > 0}
-        />
+        <HeroStat label="Rentabilidad" value={`${rentabilidad}%`} pos={s.totalPnl > 0} />
         <HeroStat
           label="P&L neto"
           value={signedMoney(s.totalPnl)}

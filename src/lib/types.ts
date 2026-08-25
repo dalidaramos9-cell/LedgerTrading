@@ -74,9 +74,32 @@ export interface AxiStage {
   status: AxiStageStatus
 }
 
+// Resumen guardado de una etapa/fase completada de Axi Select, para no
+// perder los datos cuando pasas a la siguiente fase y se reinicia el conteo.
+export interface AxiStageHistory {
+  stageLabel: string
+  minEquity: number
+  startBalance: number // balance al entrar (tras ajuste de capital)
+  endBalance: number
+  netPnl: number // ganancia de trading dentro de la fase (sin el capital agregado)
+  trades: number
+  winRate: number // 0-100
+  profitFactor: number
+  capitalAdded: number // $ agregados al entrar a esta fase
+  startDate: string // ISO
+  endDate: string // ISO
+}
+
 export interface AxiRules {
   type: 'axi'
   stages: AxiStage[]
+  // Capital agregado por fases (Axi): depósitos de ajuste al pasar de fase
+  // para cumplir el equity mínimo. Se suma al balance pero no es ganancia.
+  stage_capital_total?: number
+  // Balance de la cuenta al entrar a la fase actual (tras ajuste de capital).
+  current_stage_balance?: number
+  // Historial de fases completadas (para no perder datos al reiniciar el conteo).
+  stage_history?: AxiStageHistory[]
 }
 
 export type AccountRules = CfdRules | FuturesRules | AxiRules
