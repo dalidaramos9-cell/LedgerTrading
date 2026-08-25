@@ -103,6 +103,16 @@ export default function DashboardPage() {
     balance: p.balance,
   }))
 
+  // ---- Desempeño de la Cuenta de Asignación (solo Axi Select) ----
+  // El capital asignado = equity mínimo de la fase × su multiplicador.
+  const axiStage =
+    account.rules.type === 'axi' ? account.rules.stages[account.current_stage_index] : null
+  const assignBase = axiStage ? axiStage.minEquity * axiStage.multiplier : 0
+  const assignGain = s.totalPnl
+  const assignEquity = assignBase + assignGain
+  const assignReturn = assignBase > 0 ? (assignGain / assignBase) * 100 : 0
+  const assignDayReturn = assignBase > 0 ? (todayPnl(analysis.days) / assignBase) * 100 : 0
+
   // Dominio del eje vertical: se ajusta al rango real de los datos con un
   // pequeño margen arriba/abajo, para que la variación de la cuenta se aprecie
   // aunque sea de unos pocos cientos de dólares (en vez de forzar el 0).
@@ -198,6 +208,28 @@ export default function DashboardPage() {
           </span>
         </div>
       </div>
+
+      {account.rules.type === 'axi' && axiStage ? (
+        <div className="panel">
+          <div className="panel-head">
+            <span className="panel-title">Desempeño de la Cuenta de Asignación</span>
+            <span className="muted" style={{ fontSize: 12 }}>
+              {axiStage.label} · Capital asignado x{axiStage.multiplier}
+            </span>
+          </div>
+          <div className="stat-grid">
+            <MiniStat label="Patrimonio" value={money(assignEquity)} pos={assignGain >= 0} />
+            <MiniStat label="Ganancia" value={signedMoney(assignGain)} pos={assignGain >= 0} />
+            <MiniStat label="Rendimiento" value={`${assignReturn.toFixed(2)}%`} pos={assignGain >= 0} />
+            <MiniStat
+              label="Rendimientos de un Día"
+              value={`${assignDayReturn.toFixed(2)}%`}
+              pos={assignDayReturn >= 0}
+            />
+          </div>
+        </div>
+      ) : null}
+
 
       <div className="dash-hero">
         <HeroStat label={isCurrentView ? 'Balance actual' : 'Balance (fase)'} value={money(balanceForView)} big />
