@@ -18,7 +18,7 @@ const BLUE = '#2563eb'
 export default function DashboardPage() {
   const { trades, payouts } = useData()
   const account = useRouteAccount()
-  const { tradesForActive } = useActivePhase()
+  const { tradesForActive, activePhase, selectCurrent } = useActivePhase()
 
   const analysis = useMemo(
     () =>
@@ -109,6 +109,17 @@ export default function DashboardPage() {
 
   return (
     <div className="stack">
+      {activePhase?.kind === 'history' ? (
+        <div
+          className="alert-banner warn"
+          style={{ marginBottom: 12, cursor: 'pointer' }}
+          onClick={selectCurrent}
+          title="Ver la fase actual"
+        >
+          ⚠️ Mostrando la fase «{activePhase.label}» (histórica). Haz clic para volver a la fase actual.
+        </div>
+      ) : null}
+
       <div className="dash-hero">
         <HeroStat label="Balance actual" value={money(totalAnalysis?.stats.currentBalance ?? s.currentBalance)} big />
         <HeroStat label="Rentabilidad" value={`${rentabilidad.toFixed(2)}%`} pos={s.totalPnl > 0} />

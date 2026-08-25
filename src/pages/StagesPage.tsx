@@ -161,16 +161,28 @@ export default function StagesPage() {
             {analysis.stages.map((stage) => {
               const completed = stage.isComplete || stage.needsAdvance
               const isCurrentStage = stage.stageIndex === account.current_stage_index
+              // Registro del historial de Axi que corresponde a esta etapa (para
+              // sus fechas y para poder volver a verla seleccionándola).
+              const histMatch = isCurrentStage ? null : axiHistory.find((h) => h.stageLabel === stage.stageLabel) ?? null
               // En la vista se está mostrando la fase actual cuando activePhase es null.
               const isViewingCurrent = isCurrentStage && (activePhase === null || activePhase.kind === 'current')
+              const isViewingThis = isCurrentStage
+                ? isViewingCurrent
+                : activePhase?.kind === 'history' && activePhase.label === stage.stageLabel
               return (
                 <div
                   className="stage-row"
                   key={stage.stageIndex}
-                  onClick={isCurrentStage ? () => selectCurrent() : undefined}
+                  onClick={
+                    isCurrentStage
+                      ? () => selectCurrent()
+                      : histMatch
+                        ? () => selectHistory(histMatch)
+                        : undefined
+                  }
                   style={{
-                    cursor: isCurrentStage ? 'pointer' : undefined,
-                    background: isViewingCurrent ? 'var(--accent-soft)' : undefined,
+                    cursor: isCurrentStage || histMatch ? 'pointer' : undefined,
+                    background: isViewingThis ? 'var(--accent-soft)' : undefined,
                     borderRadius: 8,
                   }}
                 >
@@ -199,6 +211,13 @@ export default function StagesPage() {
                     {stageDetail(account, stage) ? (
                       <div className="stage-stat-row">
                         <span className="muted">{stageDetail(account, stage)}</span>
+                      </div>
+                    ) : null}
+                    {histMatch ? (
+                      <div className="stage-stat-row">
+                        <span className="muted">
+                          {shortDate(histMatch.startDate)} → {shortDate(histMatch.endDate)}
+                        </span>
                       </div>
                     ) : null}
                   </div>
