@@ -76,10 +76,25 @@ export default function DashboardPage() {
     )
   }
 
+  // Capital agregado manualmente (depósitos) — no forma parte del rendimiento.
+  const totalCapital =
+    account?.type === 'axi' && account.rules.type === 'axi'
+      ? account.rules.stage_capital_total ?? 0
+      : 0
+
+  // La fase ACTUAL sí muestra el balance con el capital agregado (el dinero real
+  // con el que se opera ahora). Al visualizar una fase PASADA, se muestra solo
+  // capital inicial + rendimiento de esa fase (en su momento ese depósito no
+  // existía).
+  const isCurrentView = !activePhase || activePhase.kind === 'current'
+
   const s = analysis.stats
-  // Rentabilidad de la fase seleccionada sobre el capital inicial (rendimiento
-  // del trading, sin incluir los aportes de capital manuales).
-  const rentabilidad = (s.totalPnl / Math.max(account.initial_balance, 1)) * 100
+  // Rentabilidad de la vista seleccionada. En la fase actual se mide sobre el
+  // capital con que se opera (inicial + depósito); en las fases pasadas sobre el
+  // capital inicial (rendimiento puro del trading de esa fase).
+  const rentBase = isCurrentView ? account.initial_balance + totalCapital : account.initial_balance
+  const rentabilidad = (s.totalPnl / Math.max(rentBase, 1)) * 100
+  const balanceForView = isCurrentView ? s.currentBalance + totalCapital : s.currentBalance
   const equityData = analysis.equity.map((p) => ({
     label: p.date.slice(5),
     balance: p.balance,
@@ -141,12 +156,6 @@ export default function DashboardPage() {
   ]
   const selectedKey = activePhase?.kind === 'history' ? activePhase.label : '__current__'
 
-  // Capital agregado manualmente (depósitos) — no forma parte del rendimiento.
-  const totalCapital =
-    account?.type === 'axi' && account.rules.type === 'axi'
-      ? account.rules.stage_capital_total ?? 0
-      : 0
-
   function changePhase(key: string) {
     if (key === '__current__') {
       selectCurrent()
@@ -188,7 +197,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="dash-hero">
-        <HeroStat label="Balance (fase)" value={money(s.currentBalance)} big />
+        <HeroStat label={isCurrentView ? 'Balance actual' : 'Balance (fase)'} value={money(balanceForView)} big />
         <HeroStat label="Rentabilidad" value={`${rentabilidad.toFixed(2)}%`} pos={s.totalPnl > 0} />
         <HeroStat
           label="P&L neto"
