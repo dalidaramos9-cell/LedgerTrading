@@ -46,11 +46,15 @@ export default function StagesPage() {
     )
   }
 
-  // Monto sugerido para llegar al equity mínimo de la etapa actual (si falta).
+  // Monto de capital recomendado para la fase actual.
+  // Se busca que el balance llegue a: mínimo de la fase + pérdida máx permitida,
+  // para que aunque se asuma la pérdida máxima, el balance no baje del mínimo.
   const currentStage = account.rules.type === 'axi' ? account.rules.stages[account.current_stage_index] : null
   const minEquity = currentStage?.minEquity ?? 0
+  const maxLossPct = currentStage?.maxLossPct ?? 0
   const balanceNow = analysis.stats.currentBalance
-  const suggestedCapital = minEquity > 0 ? Math.max(0, minEquity - balanceNow) : 0
+  const capitalTarget = minEquity + (minEquity * maxLossPct) / 100
+  const suggestedCapital = capitalTarget > 0 ? Math.max(0, capitalTarget - balanceNow) : 0
   // Acceso tipado a los datos de capital e historial de Axi.
   const axiCapital =
     account.type === 'axi' && account.rules.type === 'axi'
@@ -62,7 +66,8 @@ export default function StagesPage() {
       : []
 
   async function addCapital() {
-    const amt = parseFloat(capitalAmount)
+    // Si no se escribió un monto, se aplica el recomendado (mínimo + pérdida máx).
+    const amt = capitalAmount.trim() !== '' ? parseFloat(capitalAmount) : suggestedCapital
     if (!account || Number.isNaN(amt) || amt <= 0) return
     if (!(account.rules.type === 'axi')) return
     const updated = {
@@ -181,6 +186,10 @@ export default function StagesPage() {
               <strong>{money(minEquity)}</strong>
             </div>
             <div className="stage-stat-row" style={{ marginTop: 6 }}>
+              <span>Capital recomendado (mínimo + pérdida máx {maxLossPct}%)</span>
+              <strong>{money(capitalTarget)}</strong>
+            </div>
+            <div className="stage-stat-row" style={{ marginTop: 6 }}>
               <span>Capital agregado en total</span>
               <strong style={{ color: 'var(--text-muted)' }}>{money(axiCapital)}</strong>
             </div>
@@ -190,7 +199,7 @@ export default function StagesPage() {
               </Button>
               {suggestedCapital > 0 ? (
                 <span className="muted" style={{ fontSize: 13 }}>
-                  Falta {money(suggestedCapital)} para cumplir el mínimo de esta etapa.
+                  Recomendado agregar {money(suggestedCapital)} para cubrir mínimo + pérdida máx de la etapa.
                 </span>
               ) : null}
             </div>
@@ -244,13 +253,13 @@ export default function StagesPage() {
 
       <Modal open={capitalOpen} onClose={() => setCapitalOpen(false)} title="Agregar capital (Axi Select)">
         <div className="stack">
-          <Field label={`Monto a agregar${suggestedCapital > 0 ? ` (sugerido: ${money(suggestedCapital)})` : ''}`}>
+          <Field label={`Monto a agregar${suggestedCapital > 0 ? ` (recomendado: ${money(suggestedCapital)})` : ''}`}>
             <input
               type="number"
               step="0.01"
               min="0"
               className="input"
-              placeholder="0.00"
+              placeholder={suggestedCapital > 0 ? String(Math.round(suggestedCapital * 100) / 100) : '0.00'}
               value={capitalAmount}
               onChange={(e) => setCapitalAmount(e.target.value)}
             />

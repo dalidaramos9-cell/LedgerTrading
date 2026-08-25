@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useData } from '../contexts/DataContext'
 import { useRouteAccount } from '../contexts/AccountRouteContext'
+import { useActivePhase } from '../contexts/ActivePhaseContext'
 import { analyzeAccount } from '../lib/engine'
 import { isoDate, signedMoney, monthName } from '../lib/fmt'
 import TradeForm from '../components/TradeForm'
@@ -9,6 +10,7 @@ import { Button, EmptyState } from '../components/ui'
 export default function CalendarPage() {
   const { trades, payouts } = useData()
   const account = useRouteAccount()
+  const { tradesForActive } = useActivePhase()
 
   const [cursor, setCursor] = useState(() => {
     const d = new Date()
@@ -16,17 +18,17 @@ export default function CalendarPage() {
   })
   const [datePicker, setDatePicker] = useState<string | null>(null)
 
-  // El calendario muestra TODAS las operaciones de la cuenta (registro cronológico),
-  // para que puedas registrar y ver operaciones de cualquier fecha, sin importar
-  // la fase activa seleccionada en otros paneles.
+  // El calendario refleja la fase activa seleccionada (actual o una histórica),
+  // igual que el resto de paneles. Para registrar/ver operaciones de otra fase,
+  // selecciona esa fase desde la pestaña Etapas.
   const analysis = useMemo(() => {
     if (!account) return null
     return analyzeAccount(
       account,
-      trades.filter((t) => t.account_id === account.id),
+      tradesForActive(trades.filter((t) => t.account_id === account.id)),
       payouts.filter((p) => p.account_id === account.id),
     )
-  }, [account, trades, payouts])
+  }, [account, trades, payouts, tradesForActive])
 
   if (!account || !analysis) {
     return (
