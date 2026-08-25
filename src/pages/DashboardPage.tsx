@@ -112,6 +112,15 @@ export default function DashboardPage() {
   const assignEquity = assignBase + assignGain
   const assignReturn = assignBase > 0 ? (assignGain / assignBase) * 100 : 0
   const assignDayReturn = assignBase > 0 ? (todayPnl(analysis.days) / assignBase) * 100 : 0
+  // Ganancia Mensual Proyectada: lo que cobra el trader por los beneficios del
+  // mes en curso sobre la cuenta apalancada, según su profit split de la fase.
+  // En Seed el profit split es 0 (no se cobra) → resultado 0.
+  const assignSplitPct = axiStage?.profitSplit ?? 0
+  const nowDate = new Date()
+  const currentMonthPnl = analysis.monthly.find(
+    (m) => m.year === nowDate.getFullYear() && m.month === nowDate.getMonth() + 1,
+  )?.pnl ?? 0
+  const projectedMonthly = (currentMonthPnl * assignSplitPct) / 100
 
   // Dominio del eje vertical: se ajusta al rango real de los datos con un
   // pequeño margen arriba/abajo, para que la variación de la cuenta se aprecie
@@ -225,6 +234,12 @@ export default function DashboardPage() {
               label="Rendimientos de un Día"
               value={`${assignDayReturn.toFixed(2)}%`}
               pos={assignDayReturn >= 0}
+            />
+            <MiniStat
+              label="Ganancia Mensual Proyectada"
+              value={money(projectedMonthly)}
+              sub={`Profit split ${assignSplitPct}%`}
+              pos={projectedMonthly > 0}
             />
           </div>
         </div>
