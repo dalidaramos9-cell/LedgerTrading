@@ -103,3 +103,5 @@ supabase/
 ```
 
 > **Nota:** los cálculos de drawdown, objetivos y avance de etapa se hacen en el cliente a partir de los datos crudos (operaciones + payouts). Esto mantiene la app rápida, funciona sin conexión y refleja los cambios al instante, sincronizando después con Supabase.
+
+HOLA
