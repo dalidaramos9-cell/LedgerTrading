@@ -23,11 +23,19 @@ export function ActivePhaseProvider({ children }: { children: ReactNode }) {
   const account = useRouteAccount()
   const [activePhase, setActivePhase] = useState<ActivePhase>(null)
 
-  // Cuando cambia la cuenta, volver a la fase actual por defecto.
+  // Cuando cambia la cuenta o la fase actual, volver a la fase actual por defecto
+  // (para que los paneles se "reseteeen" al pasar de Seed a Incubation, etc.).
   useEffect(() => {
     setActivePhase(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [account?.id])
+  }, [
+    account?.id,
+    account?.current_stage_index,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    account?.type === 'axi' && account.rules.type === 'axi'
+      ? account.rules.current_stage_start_date
+      : undefined,
+  ])
 
   // Rango de fechas de la fase actual.
   function getCurrentRange(): { start: string; end: string } | null {
