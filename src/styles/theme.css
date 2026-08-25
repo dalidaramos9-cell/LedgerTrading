@@ -1293,3 +1293,185 @@ h4 {
     transform: translateX(0);
   }
 }
+
+/* ============================================================
+   RESPONSIVE — Celular (pantallas pequeñas)
+   ============================================================ */
+
+/* --- Tablets y pantallas medianas: sidebar off-canvas --- */
+@media (max-width: 900px) {
+  .main {
+    padding: 10px 12px 84px;
+  }
+  .topbar {
+    padding: 8px 0 10px;
+    gap: 8px;
+  }
+  .topbar .btn {
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+  .page-header {
+    gap: 10px;
+  }
+  .page-title {
+    font-size: 20px;
+  }
+}
+
+/* --- Teléfonos (<=640px): ajustes finos --- */
+@media (max-width: 640px) {
+  html {
+    font-size: 15px;
+  }
+  .main {
+    padding: 8px 10px 76px;
+  }
+
+  /* Pestañas de cuenta: scroll horizontal en vez de desbordar */
+  .account-tabs-nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 6px;
+    gap: 6px;
+  }
+  .account-tabs-nav::-webkit-scrollbar {
+    display: none;
+  }
+  .account-tab {
+    flex: 0 0 auto;
+    padding: 8px 14px;
+    font-size: 13px;
+  }
+
+  /* Formularios: una sola columna */
+  .form-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .form-actions {
+    flex-direction: column-reverse;
+  }
+  .form-actions .btn {
+    width: 100%;
+  }
+
+  /* Tarjetas de estadística: 2 por fila en compacto */
+  .stat-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  .dash-hero {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  .stat-value {
+    font-size: 18px;
+  }
+
+  /* Paneles y grids internos a una columna */
+  .grid-2,
+  .grid-3 {
+    grid-template-columns: 1fr;
+  }
+
+  /* Modal a pantalla casi completa */
+  .modal-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .modal,
+  .modal-wide,
+  .modal-sm {
+    max-width: 100%;
+    max-height: 92vh;
+    border-radius: 16px 16px 0 0;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Entradas más cómodas al tacto */
+  .input,
+  .select,
+  .textarea {
+    padding: 11px 12px;
+    font-size: 15px;
+  }
+
+  /* Tablas: permitir scroll horizontal con toque */
+  .table-wrap {
+    -webkit-overflow-scrolling: touch;
+  }
+  .table th,
+  .table td {
+    padding: 10px 10px;
+  }
+
+  /* Tarjetas de cuenta */
+  .accounts-grid {
+    grid-template-columns: 1fr;
+  }
+  .account-card {
+    padding: 14px;
+  }
+  .account-card .btn {
+    padding: 10px 14px;
+  }
+
+  /* Calendario: celdas compactas y legibles */
+  .calendar-cell {
+    min-height: 52px;
+    padding: 3px;
+    border-radius: 8px;
+  }
+  .calendar-daynum {
+    font-size: 11px;
+  }
+  .calendar-daypnl {
+    font-size: 9.5px;
+  }
+  .calendar-grid {
+    gap: 4px;
+  }
+  .calendar-nav .btn {
+    padding: 6px 8px;
+  }
+
+  /* Encabezados de página y botón primario de acción */
+  .page-title {
+    font-size: 19px;
+  }
+  .topbar {
+    flex-direction: row;
+    align-items: center;
+  }
+  .topbar-right .theme-toggle {
+    display: none; /* el tema se cambia desde el drawer */
+  }
+
+  /* Etapas: contenido compacto */
+  .stage-stat-row {
+    font-size: 12px;
+    gap: 8px;
+  }
+
+  /* Botones grandes y alcanzables */
+  .btn {
+    font-size: 14px;
+  }
+}
+
+/* --- Teléfonos muy pequeños (<=400px) --- */
+@media (max-width: 400px) {
+  .stat-grid {
+    grid-template-columns: 1fr;
+  }
+  .dash-hero {
+    grid-template-columns: 1fr;
+  }
+  .calendar-weekday {
+    font-size: 9px;
+  }
+}
+
