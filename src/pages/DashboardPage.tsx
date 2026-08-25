@@ -14,11 +14,17 @@ import { EmptyState, ProgressBar } from '../components/ui'
 const GREEN = '#16a34a'
 const RED = '#dc2626'
 const BLUE = '#2563eb'
+const AXI_RED = '#e11d48'
 
 export default function DashboardPage() {
   const { trades, payouts } = useData()
   const account = useRouteAccount()
   const { activePhase, selectCurrent, selectHistory } = useActivePhase()
+
+  // Color principal del Dashboard según el broker: rojo para cuentas Axi
+  // (color de marca del broker), azul para el resto.
+  const isAxi = (account?.type === 'axi') || (account?.broker?.toLowerCase().includes('axi') ?? false)
+  const primaryColor = isAxi ? AXI_RED : BLUE
 
   const accountTrades = account ? trades.filter((t) => t.account_id === account.id) : []
   const accountPayouts = account ? payouts.filter((p) => p.account_id === account.id) : []
@@ -215,7 +221,7 @@ export default function DashboardPage() {
         <div className="panel-head">
           <span className="panel-title">Curva de equity</span>
           <span className="legend">
-            <span className="legend-swatch" style={{ background: BLUE }} /> balance
+            <span className="legend-swatch" style={{ background: primaryColor }} /> balance
           </span>
         </div>
         <div className="chart-wrap">
@@ -223,8 +229,8 @@ export default function DashboardPage() {
             <AreaChart data={equityData} margin={{ top: 5, right: 5, left: 5, bottom: 0 }}>
               <defs>
                 <linearGradient id="eqGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={BLUE} stopOpacity={0.35} />
-                  <stop offset="100%" stopColor={BLUE} stopOpacity={0.02} />
+                  <stop offset="0%" stopColor={primaryColor} stopOpacity={0.35} />
+                  <stop offset="100%" stopColor={primaryColor} stopOpacity={0.02} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
@@ -234,7 +240,7 @@ export default function DashboardPage() {
                 formatter={(v) => money(Number(v))}
                 contentStyle={{ background: 'var(--bg-elev)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 13 }}
               />
-              <Area type="monotone" dataKey="balance" stroke={BLUE} strokeWidth={2} fill="url(#eqGrad)" />
+              <Area type="monotone" dataKey="balance" stroke={primaryColor} strokeWidth={2} fill="url(#eqGrad)" />
             </AreaChart>
           </ResponsiveContainer>
         </div>
