@@ -96,7 +96,7 @@ export default function DashboardPage() {
     <div className="stack">
       <div className="dash-hero">
         <HeroStat label="Balance actual" value={money(s.currentBalance)} big />
-        <HeroStat label="Rentabilidad" value={`${rentabilidad}%`} pos={s.totalPnl > 0} />
+        <HeroStat label="Rentabilidad" value={`${rentabilidad.toFixed(2)}%`} pos={s.totalPnl > 0} />
         <HeroStat
           label="P&L neto"
           value={signedMoney(s.totalPnl)}

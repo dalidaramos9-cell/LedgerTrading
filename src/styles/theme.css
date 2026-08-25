@@ -371,7 +371,7 @@ h4 {
 /* ---- Tarjetas de estadÃ­stica ---- */
 .stat-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
   gap: 12px;
 }
 .stat-card {
@@ -382,6 +382,7 @@ h4 {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  height: 100%;
 }
 .stat-label {
   font-size: 12px;

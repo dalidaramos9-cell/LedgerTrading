@@ -56,8 +56,15 @@ export function useStageAutoAdvance(account: Account | null, analysis: AccountAn
           endDate: nowIso,
         },
       ]
-      // La nueva fase arranca ahora: se setea su fecha de inicio.
-      updated.rules = { ...account.rules, stages, stage_history: history, current_stage_start_date: nowIso }
+      // La nueva fase arranca con el balance actual; se setea su fecha de inicio
+      // (el usuario puede corregirla manualmente para registrar operaciones pasadas).
+      updated.rules = {
+        ...account.rules,
+        stages,
+        stage_history: history,
+        current_stage_start_date: nowIso,
+        current_stage_balance: analysis.stats.currentBalance,
+      }
     }
 
     advancing.current = true

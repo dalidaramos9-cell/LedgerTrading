@@ -3,7 +3,7 @@ import { useData } from '../contexts/DataContext'
 import { useRouteAccount } from '../contexts/AccountRouteContext'
 import { useActivePhase } from '../contexts/ActivePhaseContext'
 import { analyzeAccount } from '../lib/engine'
-import { money, signedMoney } from '../lib/fmt'
+import { money, signedMoney, isoDate, shortDate } from '../lib/fmt'
 import { useStageAutoAdvance } from '../hooks/useStageAutoAdvance'
 import CelebrationModal from '../components/CelebrationModal'
 import { Badge, ProgressBar, EmptyState, Button, Modal, Field } from '../components/ui'
@@ -64,6 +64,11 @@ export default function StagesPage() {
     account.type === 'axi' && account.rules.type === 'axi'
       ? account.rules.stage_history ?? []
       : []
+  // Fecha de inicio de la fase actual (para mostrarla y permitir editarla).
+  const phaseStartDate =
+    account.rules.type === 'axi' && account.rules.current_stage_start_date
+      ? isoDate(new Date(account.rules.current_stage_start_date))
+      : isoDate(new Date())
 
   async function addCapital() {
     // Si no se escribió un monto, se aplica el recomendado (mínimo + pérdida máx).
@@ -83,6 +88,25 @@ export default function StagesPage() {
       await updateAccount(updated)
       setCapitalOpen(false)
       setCapitalAmount('')
+    } catch {
+      /* ignorar */
+    }
+  }
+
+  // Guarda la fecha de inicio manual de la fase actual (para poder registrar
+  // operaciones del pasado si la cuenta ya venía en una etapa avanzada).
+  async function setPhaseStartDate(newDate: string) {
+    if (!account || !newDate) return
+    if (!(account.rules.type === 'axi')) return
+    const updated = {
+      ...account,
+      rules: {
+        ...account.rules,
+        current_stage_start_date: new Date(newDate + 'T12:00:00').toISOString(),
+      },
+    }
+    try {
+      await updateAccount(updated)
     } catch {
       /* ignorar */
     }
@@ -177,6 +201,14 @@ export default function StagesPage() {
             <div className="panel-head">
               <span className="panel-title">Capital de la cuenta</span>
             </div>
+            <Field label="Fecha de inicio de la fase actual (permite registrar operaciones del pasado)">
+              <input
+                type="date"
+                className="input"
+                value={phaseStartDate}
+                onChange={(e) => setPhaseStartDate(e.target.value)}
+              />
+            </Field>
             <div className="stage-stat-row">
               <span>Balance actual</span>
               <strong>{money(balanceNow)}</strong>
@@ -218,6 +250,7 @@ export default function StagesPage() {
                   <thead>
                     <tr>
                       <th>Fase</th>
+                      <th>Fechas</th>
                       <th className="num">Balance final</th>
                       <th className="num">P&L</th>
                       <th className="num">Operaciones</th>
@@ -235,6 +268,9 @@ export default function StagesPage() {
                           style={{ cursor: 'pointer', background: isSel ? 'var(--accent-soft)' : undefined }}
                         >
                           <td><strong>{h.stageLabel}</strong></td>
+                          <td className="muted">
+                            {shortDate(h.startDate)} → {shortDate(h.endDate)}
+                          </td>
                           <td className="num">{money(h.endBalance)}</td>
                           <td className={`num ${h.netPnl >= 0 ? 'pos' : 'neg'}`}>{signedMoney(h.netPnl)}</td>
                           <td className="num">{h.trades}</td>
