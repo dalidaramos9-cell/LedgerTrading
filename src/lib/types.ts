@@ -110,6 +110,11 @@ export interface AxiRules {
   // Edge Score actual de la fase (ingresado manualmente por el usuario; el
   // motor no lo calcula). Se usa para el gauge de avance hacia la siguiente etapa.
   current_edge_score?: number
+  // Flags para exonerar ("dar por cumplidos") los requisitos de duración mínima
+  // y operaciones mínimas de la fase actual, sin necesid de registrar cada trade
+  // (cuentas reales que ya los cumplieron fuera de la app).
+  min_days_waived?: boolean
+  min_trades_waived?: boolean
   // Historial de fases completadas (para no perder datos al reiniciar el conteo).
   stage_history?: AxiStageHistory[]
 }

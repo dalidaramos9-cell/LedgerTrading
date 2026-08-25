@@ -523,6 +523,31 @@ function RuleStatusUSD({ account }: { account: NonNullable<ReturnType<typeof use
         : 0
       : 0
 
+  // Exoneraciones de requisitos (cuenta real que ya cumplió días/operaciones
+  // fuera de la app y no quiere registrar todo).
+  const axiDaysWaived = account.rules.type === 'axi' && !!account.rules.min_days_waived
+  const axiTradesWaived = account.rules.type === 'axi' && !!account.rules.min_trades_waived
+  const daysMet = axiMinDays > 0 && (daysElapsed >= axiMinDays || axiDaysWaived)
+  const tradesMet = axiMinTrades > 0 && (phaseTradesCount >= axiMinTrades || axiTradesWaived)
+
+  // Da por cumplidos ambos requisitos (días y operaciones) de forma automática.
+  async function waiveRequirements() {
+    if (account.rules.type !== 'axi') return
+    const updated = {
+      ...account,
+      rules: {
+        ...account.rules,
+        min_days_waived: true,
+        min_trades_waived: true,
+      },
+    }
+    try {
+      await updateAccount(updated)
+    } catch {
+      /* reintenta */
+    }
+  }
+
   // Edge Score objetivo para llegar a la SIGUIENTE fase. Se usa el requerido de
   // la siguiente etapa; si no hay siguiente (última fase), se muestra el de la
   // fase actual a modo de referencia.
@@ -601,12 +626,16 @@ function RuleStatusUSD({ account }: { account: NonNullable<ReturnType<typeof use
             <div className="rule-panel-row">
               <span className="rule-panel-label">Días mínimos ({currentAxiStage.label})</span>
               <span className="rule-panel-value">
-                {axiMinDays > 0 ? `${daysElapsed} / ${axiMinDays}` : 'N/A'}
+                {axiMinDays > 0
+                  ? daysMet
+                    ? `Cumplido ✓ (${daysElapsed} / ${axiMinDays})`
+                    : `${daysElapsed} / ${axiMinDays}`
+                  : 'N/A'}
               </span>
             </div>
             <ProgressBar
-              value={axiMinDays > 0 ? Math.min(100, (daysElapsed / axiMinDays) * 100) : 0}
-              tone={axiMinDays > 0 && daysElapsed >= axiMinDays ? 'success' : 'auto'}
+              value={axiMinDays > 0 && daysMet ? 100 : axiMinDays > 0 ? Math.min(100, (daysElapsed / axiMinDays) * 100) : 0}
+              tone={axiMinDays > 0 && daysMet ? 'success' : 'auto'}
             />
           </div>
 
@@ -614,13 +643,36 @@ function RuleStatusUSD({ account }: { account: NonNullable<ReturnType<typeof use
             <div className="rule-panel-row">
               <span className="rule-panel-label">Operaciones mínimas ({currentAxiStage.label})</span>
               <span className="rule-panel-value">
-                {axiMinTrades > 0 ? `${phaseTradesCount} / ${axiMinTrades}` : 'N/A'}
+                {axiMinTrades > 0
+                  ? tradesMet
+                    ? `Cumplido ✓ (${phaseTradesCount} / ${axiMinTrades})`
+                    : `${phaseTradesCount} / ${axiMinTrades}`
+                  : 'N/A'}
               </span>
             </div>
             <ProgressBar
-              value={axiMinTrades > 0 ? Math.min(100, (phaseTradesCount / axiMinTrades) * 100) : 0}
-              tone={axiMinTrades > 0 && phaseTradesCount >= axiMinTrades ? 'success' : 'auto'}
+              value={axiMinTrades > 0 && tradesMet ? 100 : axiMinTrades > 0 ? Math.min(100, (phaseTradesCount / axiMinTrades) * 100) : 0}
+              tone={axiMinTrades > 0 && tradesMet ? 'success' : 'auto'}
             />
+          </div>
+
+          <div className="rule-panel safe">
+            <div className="rule-panel-row" style={{ justifyContent: 'center' }}>
+              <span className="rule-panel-label">¿Requisito ya cumplido fuera de la app?</span>
+            </div>
+            <p className="muted" style={{ fontSize: 12, margin: '4px 0 8px' }}>
+              Si esta cuenta real ya supera los {axiMinTrades} trades y días requeridos pero no
+              quieres registrarlos, fuerza el cumplimiento automáticamente.
+            </p>
+            {daysMet && tradesMet ? (
+              <span className="rule-panel-value" style={{ color: 'var(--green)' }}>
+                ✓ Requisitos cumplidos
+              </span>
+            ) : (
+              <Button variant="primary" sm onClick={waiveRequirements}>
+                Forzar cumplimiento
+              </Button>
+            )}
           </div>
         </div>
       ) : null}
