@@ -481,6 +481,35 @@ function RuleStatusUSD({ account }: { account: NonNullable<ReturnType<typeof use
   // Consistencia (solo Futuros): la regla es en %
   const isFutures = account.rules.type === 'futures'
 
+  // ---- Axi Select: barras de días mínimos y operaciones mínimas de la fase
+  // actual. Se muestran como etiquetas con progreso en el panel de reglas. ----
+  const isAxi = account.rules.type === 'axi'
+  const currentAxiStage =
+    isAxi && account.rules.type === 'axi' ? account.rules.stages[account.current_stage_index] : null
+  const axiStartStr =
+    account.rules.type === 'axi'
+      ? (account.rules.current_stage_start_date ?? account.start_date).slice(0, 10)
+      : account.start_date.slice(0, 10)
+  // Días transcurridos desde el inicio de la fase actual (el día de inicio = 1).
+  const daysElapsed = (() => {
+    if (!axiStartStr) return 0
+    const start = new Date(axiStartStr + 'T12:00:00').getTime()
+    const now = new Date().getTime()
+    if (Number.isNaN(start) || now < start) return 0
+    return Math.max(1, Math.floor((now - start) / 86400000) + 1)
+  })()
+  // Operaciones dentro de la fase actual (desde su fecha de inicio).
+  const axiMinDays = currentAxiStage?.minDays ?? 0
+  const axiMinTrades = currentAxiStage?.minTrades ?? 0
+  const phaseTradesCount =
+    axiStartStr && account.rules.type === 'axi'
+      ? account.rules.stages.length > 0
+        ? trades.filter(
+            (t) => t.account_id === account.id && t.date.slice(0, 10) >= axiStartStr,
+          ).length
+        : 0
+      : 0
+
   const tone = (usedOfLimit: number, safe: boolean) =>
     !safe ? 'danger' : usedOfLimit >= 80 ? 'warn' : 'safe'
 
@@ -529,6 +558,36 @@ function RuleStatusUSD({ account }: { account: NonNullable<ReturnType<typeof use
           </div>
         ) : null}
       </div>
+      {isAxi && currentAxiStage ? (
+        <div className="grid-3" style={{ marginTop: 12 }}>
+          <div className="rule-panel safe">
+            <div className="rule-panel-row">
+              <span className="rule-panel-label">Días mínimos ({currentAxiStage.label})</span>
+              <span className="rule-panel-value">
+                {axiMinDays > 0 ? `${daysElapsed} / ${axiMinDays}` : 'N/A'}
+              </span>
+            </div>
+            <ProgressBar
+              value={axiMinDays > 0 ? Math.min(100, (daysElapsed / axiMinDays) * 100) : 0}
+              tone={axiMinDays > 0 && daysElapsed >= axiMinDays ? 'success' : 'auto'}
+            />
+          </div>
+
+          <div className="rule-panel safe">
+            <div className="rule-panel-row">
+              <span className="rule-panel-label">Operaciones mínimas ({currentAxiStage.label})</span>
+              <span className="rule-panel-value">
+                {axiMinTrades > 0 ? `${phaseTradesCount} / ${axiMinTrades}` : 'N/A'}
+              </span>
+            </div>
+            <ProgressBar
+              value={axiMinTrades > 0 ? Math.min(100, (phaseTradesCount / axiMinTrades) * 100) : 0}
+              tone={axiMinTrades > 0 && phaseTradesCount >= axiMinTrades ? 'success' : 'auto'}
+            />
+          </div>
+        </div>
+      ) : null}
+
     </div>
   )
 }
