@@ -494,6 +494,11 @@ function RuleStatusUSD({ account }: { account: NonNullable<ReturnType<typeof use
   const isAxi = account.rules.type === 'axi'
   const currentAxiStage =
     isAxi && account.rules.type === 'axi' ? account.rules.stages[account.current_stage_index] : null
+  // Siguiente etapa (objetivo al que se quiere llegar).
+  const nextAxiStage =
+    isAxi && account.rules.type === 'axi'
+      ? account.rules.stages[account.current_stage_index + 1] ?? null
+      : null
   const axiStartStr =
     account.rules.type === 'axi'
       ? (account.rules.current_stage_start_date ?? account.start_date).slice(0, 10)
@@ -518,8 +523,11 @@ function RuleStatusUSD({ account }: { account: NonNullable<ReturnType<typeof use
         : 0
       : 0
 
-  // Edge Score requerido de la fase actual y valor actual ingresado por el usuario.
-  const edgeRequired = currentAxiStage?.edgeScore ?? 0
+  // Edge Score objetivo para llegar a la SIGUIENTE fase. Se usa el requerido de
+  // la siguiente etapa; si no hay siguiente (última fase), se muestra el de la
+  // fase actual a modo de referencia.
+  const edgeRequired = nextAxiStage?.edgeScore ?? currentAxiStage?.edgeScore ?? 0
+  const edgeGoalLabel = nextAxiStage ? nextAxiStage.label : currentAxiStage?.label ?? ''
   const edgeNow = parseFloat(edgeInput) || 0
 
   // Guarda el Edge Score actual en la cuenta (Axi).
@@ -620,17 +628,20 @@ function RuleStatusUSD({ account }: { account: NonNullable<ReturnType<typeof use
       {isAxi && currentAxiStage ? (
         <div className="rule-panel safe" style={{ marginTop: 12 }}>
           <div className="rule-panel-row">
-            <span className="rule-panel-label">Edge Score ({currentAxiStage.label})</span>
+            <span className="rule-panel-label">
+              Edge Score → llegar a {edgeGoalLabel || 'siguiente fase'}
+            </span>
             <span className="rule-panel-value">
               {edgeNow.toFixed(0)} / {edgeRequired}
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', marginTop: 8 }}>
-            <RingGauge value={edgeNow} required={edgeRequired} label="Edge Score" />
+            <RingGauge value={edgeNow} required={edgeRequired} label={`Edge hacia ${edgeGoalLabel}`} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: '1 1 180px' }}>
               <span className="muted" style={{ fontSize: 13 }}>
-                Ingresa tu Edge Score actual para ver el avance hacia la siguiente etapa
-                (este valor lo colocas tú; la app no lo calcula).
+                Ingresa tu Edge Score actual para ver cuánto te falta para pasar a{' '}
+                <strong>{edgeGoalLabel || 'la siguiente fase'}</strong> (requerido: {edgeRequired}).
+                Este valor lo colocas tú; la app no lo calcula.
               </span>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <input
