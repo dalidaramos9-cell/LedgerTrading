@@ -77,8 +77,9 @@ export default function DashboardPage() {
   }
 
   const s = analysis.stats
-  // Rentabilidad tomando en cuenta el capital total aportado (inicial + agregado).
-  const rentabilidad = (s.totalPnl / Math.max(account.initial_balance + analysis.capitalTotal, 1)) * 100
+  // Rentabilidad de la fase seleccionada sobre el capital inicial (rendimiento
+  // del trading, sin incluir los aportes de capital manuales).
+  const rentabilidad = (s.totalPnl / Math.max(account.initial_balance, 1)) * 100
   const equityData = analysis.equity.map((p) => ({
     label: p.date.slice(5),
     balance: p.balance,
@@ -140,6 +141,12 @@ export default function DashboardPage() {
   ]
   const selectedKey = activePhase?.kind === 'history' ? activePhase.label : '__current__'
 
+  // Capital agregado manualmente (depósitos) — no forma parte del rendimiento.
+  const totalCapital =
+    account?.type === 'axi' && account.rules.type === 'axi'
+      ? account.rules.stage_capital_total ?? 0
+      : 0
+
   function changePhase(key: string) {
     if (key === '__current__') {
       selectCurrent()
@@ -175,7 +182,7 @@ export default function DashboardPage() {
             </span>
           ) : null}
           <span className="muted" style={{ fontSize: 12, marginLeft: 'auto' }}>
-            Balance total de la cuenta: {money(totalAnalysis?.stats.currentBalance ?? 0)}
+            Balance total de la cuenta: {money((totalAnalysis?.stats.currentBalance ?? 0) + totalCapital)}
           </span>
         </div>
       </div>

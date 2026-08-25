@@ -243,8 +243,12 @@ export default function StagesPage() {
               />
             </Field>
             <div className="stage-stat-row">
-              <span>Balance actual</span>
-              <strong>{money(balanceNow)}</strong>
+              <span>Balance actual (incluye capital agregado)</span>
+              <strong>{money(balanceNow + axiCapital)}</strong>
+            </div>
+            <div className="stage-stat-row" style={{ marginTop: 6 }}>
+              <span>Balance solo trading (capital inicial + P&L)</span>
+              <strong style={{ color: 'var(--text-muted)' }}>{money(balanceNow)}</strong>
             </div>
             <div className="stage-stat-row" style={{ marginTop: 6 }}>
               <span>Equity mínimo etapa actual («{currentStage?.label ?? ''}»)</span>

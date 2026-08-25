@@ -307,13 +307,16 @@ export function analyzeAccount(
   // ---- reglas y etapas ----
   const rules = computeRules(account, days, equity, peak, account.initial_balance)
   const balanceAtEnd = bal
-  // El equity actual incluye el capital agregado por fases (Axi), que NO es
-  // ganancia de trading pero sí forma parte del saldo real de la cuenta.
+  // El equity actual, tal y como se usa en las estadísticas de fases y en el
+  // Dashboard, representa el CAPITAL INICIAL + el rendimiento (P&L) de la fase
+  // seleccionada, sin incluir los aportes de capital manuales (depósitos para
+  // llegar al mínimo de una fase). Así se mide la rentabilidad real del trading
+  // sin que un depósito infle el resultado histórico de una fase.
   const capitalTotal =
     account.type === 'axi' && account.rules.type === 'axi'
       ? account.rules.stage_capital_total ?? 0
       : 0
-  const liveBalance = balanceAtEnd + capitalTotal - sortedPayouts.reduce((s, p) => s + p.gross, 0)
+  const liveBalance = balanceAtEnd - sortedPayouts.reduce((s, p) => s + p.gross, 0)
   const stages = computeStages(account, totalPnl)
 
   // ---- payouts ----
