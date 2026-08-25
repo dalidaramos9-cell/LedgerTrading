@@ -7,8 +7,8 @@ import { useData } from '../contexts/DataContext'
 import { useRouteAccount } from '../contexts/AccountRouteContext'
 import { useActivePhase } from '../contexts/ActivePhaseContext'
 import { analyzeAccount } from '../lib/engine'
-import { SESSIONS } from '../lib/types'
-import { money, signedMoney, signedNum, formatNum, weekdayLabel } from '../lib/fmt'
+import { SESSIONS, AxiStageHistory } from '../lib/types'
+import { money, signedMoney, signedNum, formatNum, weekdayLabel, shortDate } from '../lib/fmt'
 import { EmptyState, ProgressBar } from '../components/ui'
 
 const GREEN = '#16a34a'
@@ -18,18 +18,44 @@ const BLUE = '#2563eb'
 export default function DashboardPage() {
   const { trades, payouts } = useData()
   const account = useRouteAccount()
-  const { tradesForActive, activePhase, selectCurrent } = useActivePhase()
+  const { activePhase, selectCurrent, selectHistory } = useActivePhase()
 
+  const accountTrades = account ? trades.filter((t) => t.account_id === account.id) : []
+  const accountPayouts = account ? payouts.filter((p) => p.account_id === account.id) : []
+
+  // Historial de fases de Axi (para el selector de fase en el Dashboard).
+  const axiHistory: AxiStageHistory[] =
+    account?.type === 'axi' && account.rules.type === 'axi' ? account.rules.stage_history ?? [] : []
+
+  // Filtra los trades según la fase seleccionada (actual o una histórica).
+  // Aquí el Dashboard decide el rango por su cuenta, sin depender del contexto,
+  // para garantizar que muestre siempre la fase correcta.
+  const phaseTrades = useMemo(() => {
+    if (activePhase?.kind === 'history') {
+      const start = activePhase.startDate.slice(0, 10)
+      const end = activePhase.endDate.slice(0, 10)
+      return accountTrades.filter((t) => {
+        const d = t.date.slice(0, 10)
+        return d >= start && d <= end
+      })
+    }
+    // Fase actual (activePhase null o 'current'): rango desde el inicio de la
+    // fase actual en adelante.
+    const start =
+      account?.type === 'axi' && account.rules.type === 'axi'
+        ? (account.rules.current_stage_start_date ?? account.start_date).slice(0, 10)
+        : account?.start_date.slice(0, 10)
+    if (!start) return accountTrades
+    return accountTrades.filter((t) => t.date.slice(0, 10) >= start)
+  }, [activePhase, accountTrades, account])
+
+  // Análisis de la fase seleccionada (filtrado por fecha).
   const analysis = useMemo(
     () =>
       account
-        ? analyzeAccount(
-            account,
-            tradesForActive(trades.filter((t) => t.account_id === account.id)),
-            payouts.filter((p) => p.account_id === account.id),
-          )
+        ? analyzeAccount(account, phaseTrades, accountPayouts)
         : null,
-    [account, trades, payouts, tradesForActive],
+    [account, phaseTrades, accountPayouts],
   )
   // Análisis con TODOS los trades de la cuenta (sin filtrar por fase activa),
   // para que el "Balance actual" coincida con el panel "Capital de la cuenta"
@@ -38,13 +64,9 @@ export default function DashboardPage() {
   const totalAnalysis = useMemo(
     () =>
       account
-        ? analyzeAccount(
-            account,
-            trades.filter((t) => t.account_id === account.id),
-            payouts.filter((p) => p.account_id === account.id),
-          )
+        ? analyzeAccount(account, accountTrades, accountPayouts)
         : null,
-    [account, trades, payouts],
+    [account, accountTrades, accountPayouts],
   )
   if (!account || !analysis) {
     return (
@@ -107,21 +129,59 @@ export default function DashboardPage() {
       ? '—'
       : `${Math.abs(s.currentStreak)} ${s.currentStreak > 0 ? 'W' : 'L'}`
 
+  // Opciones del selector de fase: fases completadas (históricas) + la actual.
+  const currentLabel =
+    account.rules.type === 'axi'
+      ? (account.rules.stages[account.current_stage_index]?.label ?? 'Fase actual')
+      : 'Vista general'
+  const phaseOptions: { key: string; label: string }[] = [
+    { key: '__current__', label: `Fase actual (${currentLabel})` },
+    ...[...axiHistory].reverse().map((h) => ({ key: h.stageLabel, label: h.stageLabel })),
+  ]
+  const selectedKey = activePhase?.kind === 'history' ? activePhase.label : '__current__'
+
+  function changePhase(key: string) {
+    if (key === '__current__') {
+      selectCurrent()
+      return
+    }
+    const h = axiHistory.find((x) => x.stageLabel === key)
+    if (h) selectHistory(h)
+  }
+
   return (
     <div className="stack">
-      {activePhase?.kind === 'history' ? (
-        <div
-          className="alert-banner warn"
-          style={{ marginBottom: 12, cursor: 'pointer' }}
-          onClick={selectCurrent}
-          title="Ver la fase actual"
-        >
-          ⚠️ Mostrando la fase «{activePhase.label}» (histórica). Haz clic para volver a la fase actual.
+      <div className="panel" style={{ padding: '10px 14px', marginBottom: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <label htmlFor="dash-phase" className="muted" style={{ fontSize: 13, margin: 0 }}>
+            Mostrando fase:
+          </label>
+          <select
+            id="dash-phase"
+            className="input"
+            style={{ flex: '1 1 220px', maxWidth: 320 }}
+            value={selectedKey}
+            onChange={(e) => changePhase(e.target.value)}
+          >
+            {phaseOptions.map((o) => (
+              <option key={o.key} value={o.key}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          {activePhase?.kind === 'history' ? (
+            <span className="muted" style={{ fontSize: 12 }}>
+              Rango {shortDate(activePhase.startDate)} → {shortDate(activePhase.endDate)}
+            </span>
+          ) : null}
+          <span className="muted" style={{ fontSize: 12, marginLeft: 'auto' }}>
+            Balance total de la cuenta: {money(totalAnalysis?.stats.currentBalance ?? 0)}
+          </span>
         </div>
-      ) : null}
+      </div>
 
       <div className="dash-hero">
-        <HeroStat label="Balance actual" value={money(totalAnalysis?.stats.currentBalance ?? s.currentBalance)} big />
+        <HeroStat label="Balance (fase)" value={money(s.currentBalance)} big />
         <HeroStat label="Rentabilidad" value={`${rentabilidad.toFixed(2)}%`} pos={s.totalPnl > 0} />
         <HeroStat
           label="P&L neto"
