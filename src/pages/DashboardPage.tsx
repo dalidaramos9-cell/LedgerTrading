@@ -13,18 +13,15 @@ import { EmptyState, ProgressBar } from '../components/ui'
 
 const GREEN = '#16a34a'
 const RED = '#dc2626'
-const BLUE = '#2563eb'
-const AXI_RED = '#e11d48'
 
 export default function DashboardPage() {
   const { trades, payouts } = useData()
   const account = useRouteAccount()
   const { activePhase, selectCurrent, selectHistory } = useActivePhase()
 
-  // Color principal del Dashboard según el broker: rojo para cuentas Axi
-  // (color de marca del broker), azul para el resto.
-  const isAxi = (account?.type === 'axi') || (account?.broker?.toLowerCase().includes('axi') ?? false)
-  const primaryColor = isAxi ? AXI_RED : BLUE
+  // Color principal del Dashboard: sigue el acento global de la marca
+  // (rojo para cuentas Axi, azul para el resto), aplicado via data-brand en CSS.
+  const primaryColor = 'var(--accent)'
 
   const accountTrades = account ? trades.filter((t) => t.account_id === account.id) : []
   const accountPayouts = account ? payouts.filter((p) => p.account_id === account.id) : []

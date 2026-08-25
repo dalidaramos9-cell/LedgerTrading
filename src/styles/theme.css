@@ -39,6 +39,21 @@ html[data-theme='light'] {
   --shadow: 0 8px 26px rgba(20, 30, 60, 0.08);
 }
 
+/* Marca Axi: acento rojo en toda la app cuando la cuenta activa es del broker
+   Axi. Se aplica sobre cualquier tema (oscuro/claro) mediante data-brand. */
+html[data-theme='dark'][data-brand='axi'] {
+  --accent: #f43f5e;
+  --accent-strong: #fb7185;
+  --accent-soft: rgba(244, 63, 94, 0.16);
+}
+
+html[data-theme='light'][data-brand='axi'] {
+  --accent: #e11d48;
+  --accent-strong: #be123c;
+  --accent-soft: rgba(225, 29, 72, 0.1);
+}
+
+
 * {
   box-sizing: border-box;
 }
@@ -1523,4 +1538,28 @@ h4 {
 .account-card {
   width: 100%;
 }
+
+/* ---- Marca Axi: toques de personalidad extra (acento rojo) ---- */
+html[data-brand='axi'] .dash-hero {
+  border-top: 3px solid var(--accent-strong);
+  padding-top: 14px;
+  border-radius: var(--radius);
+}
+html[data-brand='axi'] .panel-head {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 10px;
+}
+html[data-brand='axi'] .legend-swatch {
+  border: 1px solid var(--accent-strong);
+}
+html[data-brand='axi'] .brand-name {
+  color: var(--accent-strong);
+}
+/* Cursor/selector de fase: se nota el acento de marca */
+html[data-brand='axi'] select.input:focus,
+html[data-brand='axi'] input.input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
 

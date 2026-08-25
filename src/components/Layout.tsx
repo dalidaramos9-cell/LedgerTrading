@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useData } from '../contexts/DataContext'
@@ -96,8 +96,21 @@ function AccountList({ mobile, onNavigate }: { mobile: boolean; onNavigate?: () 
 
 function AppLayout() {
   const { user, signOut } = useAuth()
+  const { accounts } = useData()
   const navigate = useNavigate()
+  const location = useLocation()
   const [drawer, setDrawer] = useState(false)
+
+  // Marca el color de marca global según la cuenta activa de la ruta: rojo Axi
+  // para las cuentas del broker Axi, sin atributo (azul) para el resto. El CSS
+  // lee `data-brand='axi'` en <html> para teñir los acentos de la app.
+  useEffect(() => {
+    const m = location.pathname.match(/^\/cuenta\/([^/]+)/)
+    const active = m ? accounts.find((a) => a.id === m[1]) : null
+    const isAxi =
+      !!active && (active.type === 'axi' || (active.broker ?? '').toLowerCase().includes('axi'))
+    document.documentElement.setAttribute('data-brand', isAxi ? 'axi' : '')
+  }, [location.pathname, accounts])
 
   const renderSidebarContent = (mobile: boolean, onClose?: () => void) => (
     <>
