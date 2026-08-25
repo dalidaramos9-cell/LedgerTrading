@@ -107,6 +107,9 @@ export interface AxiRules {
   // Fecha (ISO) en la que la cuenta entró a la fase actual. Permite filtrar
   // los trades de la fase activa por fecha.
   current_stage_start_date?: string
+  // Edge Score actual de la fase (ingresado manualmente por el usuario; el
+  // motor no lo calcula). Se usa para el gauge de avance hacia la siguiente etapa.
+  current_edge_score?: number
   // Historial de fases completadas (para no perder datos al reiniciar el conteo).
   stage_history?: AxiStageHistory[]
 }

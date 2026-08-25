@@ -432,7 +432,15 @@ function stageDetail(
 // Panel de reglas del programa expresado en DÓLARES (monto usado vs. límite),
 // con color que depende del cálculo real.
 function RuleStatusUSD({ account }: { account: NonNullable<ReturnType<typeof useRouteAccount>> }) {
-  const { trades, payouts } = useData()
+  const { trades, payouts, updateAccount } = useData()
+  // Valor local del Edge Score actual ingresado manualmente (se persiste al
+  // cambiar). Se inicializa desde la cuenta si ya existe.
+  const [edgeInput, setEdgeInput] = useState<string>(
+    () =>
+      account.rules.type === 'axi' && account.rules.current_edge_score != null
+        ? String(account.rules.current_edge_score)
+        : '',
+  )
   const analysis = useMemo(
     () =>
       analyzeAccount(
@@ -509,6 +517,27 @@ function RuleStatusUSD({ account }: { account: NonNullable<ReturnType<typeof use
           ).length
         : 0
       : 0
+
+  // Edge Score requerido de la fase actual y valor actual ingresado por el usuario.
+  const edgeRequired = currentAxiStage?.edgeScore ?? 0
+  const edgeNow = parseFloat(edgeInput) || 0
+
+  // Guarda el Edge Score actual en la cuenta (Axi).
+  async function saveEdgeScore() {
+    if (account.rules.type !== 'axi') return
+    const next = parseFloat(edgeInput)
+    const val = Number.isNaN(next) ? 0 : Math.max(0, next)
+    if (val === (account.rules.current_edge_score ?? 0)) return
+    const updated = {
+      ...account,
+      rules: { ...account.rules, current_edge_score: val },
+    }
+    try {
+      await updateAccount(updated)
+    } catch {
+      /* reintenta en el próximo cambio */
+    }
+  }
 
   const tone = (usedOfLimit: number, safe: boolean) =>
     !safe ? 'danger' : usedOfLimit >= 80 ? 'warn' : 'safe'
@@ -588,6 +617,42 @@ function RuleStatusUSD({ account }: { account: NonNullable<ReturnType<typeof use
         </div>
       ) : null}
 
+      {isAxi && currentAxiStage ? (
+        <div className="rule-panel safe" style={{ marginTop: 12 }}>
+          <div className="rule-panel-row">
+            <span className="rule-panel-label">Edge Score ({currentAxiStage.label})</span>
+            <span className="rule-panel-value">
+              {edgeNow.toFixed(0)} / {edgeRequired}
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', marginTop: 8 }}>
+            <RingGauge value={edgeNow} required={edgeRequired} label="Edge Score" />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: '1 1 180px' }}>
+              <span className="muted" style={{ fontSize: 13 }}>
+                Ingresa tu Edge Score actual para ver el avance hacia la siguiente etapa
+                (este valor lo colocas tú; la app no lo calcula).
+              </span>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  className="input"
+                  style={{ maxWidth: 120 }}
+                  placeholder={edgeRequired ? String(edgeRequired) : '0'}
+                  value={edgeInput}
+                  onChange={(e) => setEdgeInput(e.target.value)}
+                  onBlur={saveEdgeScore}
+                />
+                <Button variant="primary" sm onClick={saveEdgeScore}>
+                  Guardar
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
     </div>
   )
 }
@@ -598,6 +663,52 @@ function Mini({ label, value, pos }: { label: string; value: string; pos?: boole
       <span className="stat-label">{label}</span>
       <span className={`stat-value ${pos ? 'pos' : ''}`} style={{ fontSize: 17 }}>
         {value}
+      </span>
+    </div>
+  )
+}
+
+// Gráfico de indicador en anillo (ring gauge). Muestra el % de avance hacia el
+// edge requerido y el valor actual en el centro.
+function RingGauge({
+  value,
+  required,
+  label,
+}: {
+  value: number
+  required: number
+  label: string
+}) {
+  const pct = required > 0 ? Math.min(100, Math.max(0, (value / required) * 100)) : 0
+  const r = 54
+  const c = 2 * Math.PI * r
+  const filled = (pct / 100) * c
+  // Color según avance: cerca/por encima del objetivo en verde si se cumple.
+  const color = pct >= 100 ? '#16a34a' : pct >= 75 ? '#d97706' : 'var(--accent)'
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+      <svg width={140} height={140} viewBox="0 0 140 140" role="img" aria-label={label}>
+        <circle cx="70" cy="70" r={r} fill="none" stroke="var(--border)" strokeWidth={14} />
+        <circle
+          cx="70"
+          cy="70"
+          r={r}
+          fill="none"
+          stroke={color}
+          strokeWidth={14}
+          strokeLinecap="round"
+          strokeDasharray={`${filled} ${c - filled}`}
+          transform="rotate(-90 70 70)"
+        />
+        <text x="70" y="66" textAnchor="middle" fill="var(--text)" style={{ fontSize: 22, fontWeight: 700 }}>
+          {required > 0 ? Math.round(value) : '—'}
+        </text>
+        <text x="70" y="86" textAnchor="middle" fill="var(--text-muted)" style={{ fontSize: 11 }}>
+          / {required > 0 ? required : 'N/A'}
+        </text>
+      </svg>
+      <span className="rule-panel-label" style={{ textAlign: 'center' }}>
+        {label}
       </span>
     </div>
   )
