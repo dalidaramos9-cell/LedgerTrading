@@ -2,7 +2,6 @@ import { useMemo } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { useData } from '../contexts/DataContext'
 import { useRouteAccount } from '../contexts/AccountRouteContext'
-import { useActivePhase } from '../contexts/ActivePhaseContext'
 import { analyzeAccount } from '../lib/engine'
 import { money, signedMoney, monthName } from '../lib/fmt'
 import { EmptyState } from '../components/ui'
@@ -13,16 +12,18 @@ const RED = '#dc2626'
 export default function MonthlyPage() {
   const { trades, payouts } = useData()
   const account = useRouteAccount()
-  const { tradesForActive } = useActivePhase()
 
+  // La vista mensual usa TODOS los trades de la cuenta (sin filtrar por fase
+  // activa), para que el profit de cada mes sea el acumulado de todas las fases
+  // y no se separe por etapa.
   const analysis = useMemo(() => {
     if (!account) return null
     return analyzeAccount(
       account,
-      tradesForActive(trades.filter((t) => t.account_id === account.id)),
+      trades.filter((t) => t.account_id === account.id),
       payouts.filter((p) => p.account_id === account.id),
     )
-  }, [account, trades, payouts, tradesForActive])
+  }, [account, trades, payouts])
 
   if (!account || !analysis) {
     return (
