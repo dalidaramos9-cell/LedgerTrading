@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useMemo, type ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
 import { Trade, AxiStageHistory } from '../lib/types'
 import { useRouteAccount } from './AccountRouteContext'
 
@@ -24,7 +24,7 @@ export function ActivePhaseProvider({ children }: { children: ReactNode }) {
   const [activePhase, setActivePhase] = useState<ActivePhase>(null)
 
   // Cuando cambia la cuenta, volver a la fase actual por defecto.
-  useMemo(() => {
+  useEffect(() => {
     setActivePhase(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [account?.id])

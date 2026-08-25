@@ -13,7 +13,7 @@ import { Badge, ProgressBar, EmptyState, Button, Modal, Field } from '../compone
 export default function StagesPage() {
   const account = useRouteAccount()
   const { trades, payouts, updateAccount } = useData()
-  const { activePhase, selectCurrent, selectHistory } = useActivePhase()
+  const { activePhase, selectCurrent, selectHistory, tradesForActive } = useActivePhase()
   const [capitalOpen, setCapitalOpen] = useState(false)
   const [capitalAmount, setCapitalAmount] = useState('')
 
@@ -25,6 +25,16 @@ export default function StagesPage() {
       payouts.filter((p) => p.account_id === account.id),
     )
   }, [account, trades, payouts])
+
+  // Estadísticas de la fase activa seleccionada (para ver los datos de esa fase).
+  const phaseAnalysis = useMemo(() => {
+    if (!account) return null
+    return analyzeAccount(
+      account,
+      tradesForActive(trades.filter((t) => t.account_id === account.id)),
+      payouts.filter((p) => p.account_id === account.id),
+    )
+  }, [account, trades, payouts, tradesForActive, activePhase])
 
   const { celebrated, dismiss } = useStageAutoAdvance(account, analysis)
 
@@ -76,6 +86,24 @@ export default function StagesPage() {
   return (
     <div className="stack">
       <RuleStatusUSD account={account} />
+
+      {phaseAnalysis ? (
+        <div className="panel">
+          <div className="panel-head">
+            <span className="panel-title">
+              {activePhase && activePhase.kind === 'history'
+                ? `Estadísticas de la fase «${activePhase.label}»`
+                : 'Estadísticas de la fase actual'}
+            </span>
+          </div>
+          <div className="stat-grid">
+            <Mini label="Balance" value={money(phaseAnalysis.stats.currentBalance)} />
+            <Mini label="P&L" value={signedMoney(phaseAnalysis.stats.totalPnl)} pos={phaseAnalysis.stats.totalPnl > 0} />
+            <Mini label="Operaciones" value={String(phaseAnalysis.stats.totalTrades)} />
+            <Mini label="Win rate" value={`${phaseAnalysis.stats.winRate.toFixed(1)}%`} />
+          </div>
+        </div>
+      ) : null}
 
       <div className="panel">
         <div className="panel-head">
@@ -366,6 +394,17 @@ function RuleStatusUSD({ account }: { account: NonNullable<ReturnType<typeof use
           </div>
         ) : null}
       </div>
+    </div>
+  )
+}
+
+function Mini({ label, value, pos }: { label: string; value: string; pos?: boolean }) {
+  return (
+    <div className="stat-card">
+      <span className="stat-label">{label}</span>
+      <span className={`stat-value ${pos ? 'pos' : ''}`} style={{ fontSize: 17 }}>
+        {value}
+      </span>
     </div>
   )
 }
