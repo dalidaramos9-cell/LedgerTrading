@@ -45,15 +45,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return
     }
 
-    supabase.auth
-      .getSession()
+    const sessionPromise = supabase.auth.getSession()
+    // Timeout: si Supabase no responde en 4s, no nos quedamos colgados en el
+    // loading infinito (que en modo claro se ve como pantalla en blanco).
+    const timeout = new Promise<{ data: { session: null } }>((resolve) => {
+      setTimeout(() => resolve({ data: { session: null } }), 4000)
+    })
+    Promise.race([sessionPromise, timeout])
       .then(({ data }) => {
         if (!mounted) return
         setUser(data.session?.user ?? null)
         setInitializing(false)
       })
       .catch(() => {
-        // Si la llamada falla (URL inválida, red, etc.), no nos quedamos colgados.
         if (mounted) {
           setUser(null)
           setInitializing(false)
