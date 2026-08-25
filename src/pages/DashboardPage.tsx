@@ -254,6 +254,7 @@ export default function DashboardPage() {
               value={money(projectedMonthly)}
               sub={`Profit split ${assignSplitPct}%`}
               pos={projectedMonthly > 0}
+              highlight
             />
           </div>
         </div>
@@ -424,9 +425,21 @@ function HeroStat({ label, value, pos, big }: { label: string; value: string; po
   )
 }
 
-function MiniStat({ label, value, sub, pos }: { label: string; value: string; sub?: string; pos?: boolean }) {
+function MiniStat({
+  label,
+  value,
+  sub,
+  pos,
+  highlight,
+}: {
+  label: string
+  value: string
+  sub?: string
+  pos?: boolean
+  highlight?: boolean
+}) {
   return (
-    <div className="stat-card">
+    <div className={`stat-card ${highlight ? 'highlight' : ''}`}>
       <span className="stat-label">{label}</span>
       <span className={`stat-value ${pos ? 'pos' : ''}`} style={{ fontSize: 17 }}>{value}</span>
       {sub ? <span className="stat-sub" style={{ color: 'var(--text-muted)' }}>{sub}</span> : null}
