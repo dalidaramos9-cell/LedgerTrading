@@ -2,9 +2,17 @@
   <defs>
     <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="#4f8cff"/>
-      <stop offset="100%" stop-color="#22d3ee"/>
+      <stop offset="100%" stop-color="#0ea5e9"/>
     </linearGradient>
   </defs>
   <rect x="1" y="1" width="30" height="30" rx="8" fill="url(#g)"/>
-  <text x="16" y="22" font-family="Arial,sans-serif" font-size="17" font-weight="bold" fill="#ffffff" text-anchor="middle">⛁</text>
+  <!-- Gráfico de velas ascendente (resumen del trading) -->
+  <g stroke="#ffffff" stroke-width="2.6" stroke-linecap="round" fill="none">
+    <path d="M8 23 L8 17 M7 18.6 L9 18.6 M8 20 L8 17" />
+    <path d="M14 20 L14 11 M13 12.6 L15 12.6 M14 15 L14 11" />
+    <path d="M20 16 L20 8 M19 9.6 L21 9.6" />
+  </g>
+  <!-- Línea de tendencia al alza -->
+  <path d="M8 18.4 L14 12.4 L20 11" stroke="#7ef0a0" stroke-width="2.4" fill="none" stroke-linecap="round"/>
 </svg>
+

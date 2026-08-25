@@ -5,6 +5,7 @@ import { useData } from '../contexts/DataContext'
 import { useTheme } from '../contexts/ThemeContext'
 import { AccountType } from '../lib/types'
 import { money } from '../lib/fmt'
+import LedgerLogo from './LedgerLogo'
 
 type Icon = 'wallet' | 'plus'
 
@@ -116,7 +117,7 @@ function AppLayout() {
   const renderSidebarContent = (mobile: boolean, onClose?: () => void) => (
     <>
       <div className="brand">
-        <div className="brand-logo">⛁</div>
+        <LedgerLogo size={34} />
         <div className="brand-name">Ledger</div>
       </div>
       <AccountList mobile={mobile} onNavigate={onClose} />

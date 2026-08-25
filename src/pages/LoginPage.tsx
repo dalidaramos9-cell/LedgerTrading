@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { configureSupabase } from '../lib/supabaseClient'
+import LedgerLogo from '../components/LedgerLogo'
 
 export default function LoginPage() {
   const { signIn, signUp, configured } = useAuth()
@@ -67,7 +68,7 @@ export default function LoginPage() {
     <div className="login-wrap">
       <div className="login-card">
         <div className="login-brand">
-          <div className="brand-logo">⛁</div>
+          <LedgerLogo size={48} />
           <div>
             <div className="login-title">Ledger</div>
             <div className="page-sub" style={{ marginTop: 0 }}>
