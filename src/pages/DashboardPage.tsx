@@ -107,17 +107,23 @@ export default function DashboardPage() {
   // La cuenta apalancada replica la rentabilidad de la cuenta real: tanto el
   // capital como la ganancia se multiplican por el multiplicador de la fase.
   // Así el % de rendimiento de la asignación es el MISMO que el de la cuenta base.
+  // La base de la cuenta incluye el capital agregado al pasar de fase, para que
+  // el desempeño se actualice al aportar capital.
   const axiStage =
     account.rules.type === 'axi' ? account.rules.stages[account.current_stage_index] : null
   const assignMult = axiStage?.multiplier ?? 1
-  const assignBase = account.initial_balance * assignMult // capital apalancado
+  const assignBaseCap =
+    account.rules.type === 'axi'
+      ? account.initial_balance + (account.rules.stage_capital_total ?? 0)
+      : account.initial_balance
+  const assignBase = assignBaseCap * assignMult // capital apalancado (con aportes)
   const assignGain = s.totalPnl * assignMult // ganancia escalada
   const assignEquity = assignBase + assignGain
-  // Rendimiento en %: sobre el capital real de la cuenta → coincide con el % base.
-  const assignReturn =
-    account.initial_balance > 0 ? (s.totalPnl / account.initial_balance) * 100 : 0
+  // Rendimiento en %: sobre el capital real de la cuenta (inicial + aportes) →
+  // coincide con el % base.
+  const assignReturn = assignBaseCap > 0 ? (s.totalPnl / assignBaseCap) * 100 : 0
   const assignDayReturn =
-    account.initial_balance > 0 ? (todayPnl(analysis.days) / account.initial_balance) * 100 : 0
+    assignBaseCap > 0 ? (todayPnl(analysis.days) / assignBaseCap) * 100 : 0
   // Ganancia Mensual Proyectada: lo que cobra el trader por los beneficios del
   // mes en curso sobre la cuenta apalancada, según su profit split de la fase.
   // En Seed el profit split es 0 (no se cobra) → resultado 0.
