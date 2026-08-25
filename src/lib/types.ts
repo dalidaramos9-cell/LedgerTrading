@@ -168,6 +168,9 @@ export interface Payout {
   split_pct: number // % del split
   status: PayoutStatus
   note: string
+  // Fase del programa a la que pertenece el pago (p. ej. "Seed", "Incubation").
+  // Opcional: aplica sobre todo a programas con etapas (Axi Select).
+  stage_label?: string
   created_at: string
 }
 

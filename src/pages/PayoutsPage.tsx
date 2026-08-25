@@ -74,6 +74,7 @@ export default function PayoutsPage() {
             <thead>
               <tr>
                 <th>Fecha</th>
+                <th>Fase</th>
                 <th className="num">Monto bruto</th>
                 <th className="num">Split</th>
                 <th className="num">Tu parte</th>
@@ -86,6 +87,7 @@ export default function PayoutsPage() {
               {filtered.map((p) => (
                 <tr key={p.id}>
                   <td><span className="muted">{shortDate(p.date)}</span></td>
+                  <td>{p.stage_label ? <Badge tone="neutral">{p.stage_label}</Badge> : <span className="muted">—</span>}</td>
                   <td className="num"><strong>{money(p.gross)}</strong></td>
                   <td className="num">{p.split_pct}%</td>
                   <td className="num" style={{ color: 'var(--green)', fontWeight: 700 }}>{money((p.gross * p.split_pct) / 100)}</td>

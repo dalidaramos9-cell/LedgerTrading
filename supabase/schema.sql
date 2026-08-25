@@ -70,6 +70,7 @@ create table if not exists public.payouts (
   split_pct numeric not null default 80,
   status text not null default 'requested' check (status in ('requested','approved','paid','rejected')),
   note text not null default '',
+  stage_label text not null default '',
   created_at timestamptz not null default now()
 );
 
@@ -203,3 +204,8 @@ create policy "select own settings" on public.app_settings for select using (aut
 create policy "insert own settings" on public.app_settings for insert with check (auth.uid() = user_id);
 create policy "update own settings" on public.app_settings for update using (auth.uid() = user_id);
 create policy "delete own settings" on public.app_settings for delete using (auth.uid() = user_id);
+
+-- Migración: fase a la que pertenece cada payout (p. ej. "Seed", "Incubation").
+-- Si tu tabla public.payouts ya existía sin esta columna, ejecuta:
+--   alter table public.payouts add column if not exists stage_label text not null default '';
+alter table public.payouts add column if not exists stage_label text not null default '';

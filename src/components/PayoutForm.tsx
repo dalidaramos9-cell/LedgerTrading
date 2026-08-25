@@ -21,6 +21,7 @@ export default function PayoutForm({
   const [split, setSplit] = useState('80')
   const [status, setStatus] = useState<Payout['status']>('requested')
   const [note, setNote] = useState('')
+  const [stage, setStage] = useState('')
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [yourCut, setYourCut] = useState<number | null>(null)
@@ -29,7 +30,7 @@ export default function PayoutForm({
     if (!open) return
     setErr(null)
     let splitPct = 80
-    const r = account.rules as { profitSplit?: number; type?: string; stages?: { profitSplit: number }[] }
+    const r = account.rules as { profitSplit?: number; type?: string; stages?: { label: string; profitSplit: number }[] }
     if (r && r.profitSplit) splitPct = r.profitSplit
     else if (r && r.type === 'axi' && r.stages && r.stages.length) {
       splitPct = r.stages[r.stages.length - 1].profitSplit
@@ -40,6 +41,7 @@ export default function PayoutForm({
       setSplit(String(initial.split_pct))
       setStatus(initial.status)
       setNote(initial.note || '')
+      setStage(initial.stage_label ?? '')
       setYourCut((initial.gross * initial.split_pct) / 100)
     } else {
       setDate(isoDate(new Date()))
@@ -47,6 +49,7 @@ export default function PayoutForm({
       setSplit(String(splitPct))
       setStatus('requested')
       setNote('')
+      setStage('')
       setYourCut(null)
     }
   }, [open, initial, account])
@@ -76,6 +79,7 @@ export default function PayoutForm({
       split_pct: Number.isNaN(s) ? 0 : s,
       status,
       note: note.trim(),
+      stage_label: stage.trim() ? stage.trim() : undefined,
     }
     try {
       if (initial) await updatePayout({ ...initial, ...payload })
@@ -87,6 +91,15 @@ export default function PayoutForm({
       setSaving(false)
     }
   }
+
+  // Etapas disponibles de la cuenta (Axi Select u otros con fases), para asociar
+  // cada pago a la fase correspondiente.
+  const rulesTyped = account.rules as {
+    type?: string
+    stages?: { label: string; profitSplit: number }[]
+  }
+  const hasStages = !!rulesTyped?.stages?.length
+  const stageOptions = rulesTyped?.stages?.map((s) => s.label) ?? []
 
   return (
     <Modal open={open} onClose={onClose} title={initial ? 'Editar payout' : 'Registrar payout'}>
@@ -108,6 +121,16 @@ export default function PayoutForm({
               ))}
             </select>
           </Field>
+          {hasStages ? (
+            <Field label="Fase" hint="Opcional">
+              <select className="select" value={stage} onChange={(e) => setStage(e.target.value)}>
+                <option value="">Sin fase</option>
+                {stageOptions.map((label) => (
+                  <option key={label} value={label}>{label}</option>
+                ))}
+              </select>
+            </Field>
+          ) : null}
         </div>
         {yourCut !== null ? (
           <div className="panel" style={{ marginTop: 14, textAlign: 'center' }}>
