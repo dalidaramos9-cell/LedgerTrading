@@ -43,6 +43,22 @@ export default function DashboardPage() {
     balance: p.balance,
   }))
 
+  // Dominio del eje vertical: se ajusta al rango real de los datos con un
+  // pequeño margen arriba/abajo, para que la variación de la cuenta se aprecie
+  // aunque sea de unos pocos cientos de dólares (en vez de forzar el 0).
+  const equityDomain = (() => {
+    if (!equityData.length) return [0, 1]
+    let min = Infinity
+    let max = -Infinity
+    for (const d of equityData) {
+      if (d.balance < min) min = d.balance
+      if (d.balance > max) max = d.balance
+    }
+    if (!isFinite(min) || !isFinite(max) || min === max) return [min - 1, max + 1]
+    const pad = Math.max((max - min) * 0.1, 1)
+    return [Math.floor((min - pad) * 100) / 100, Math.ceil((max + pad) * 100) / 100]
+  })()
+
   const sessionData = analysis.bySession.map((x) => ({
     name: SESSIONS.find((sess) => sess.value === x.session)?.label ?? x.session,
     pnl: Math.round(x.pnl * 100) / 100,
@@ -111,7 +127,7 @@ export default function DashboardPage() {
               </defs>
               <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
               <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} minTickGap={24} />
-              <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} width={56} />
+              <YAxis domain={equityDomain as [number, number]} tick={{ fontSize: 11, fill: 'var(--text-muted)' }} width={56} />
               <Tooltip
                 formatter={(v) => money(Number(v))}
                 contentStyle={{ background: 'var(--bg-elev)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 13 }}

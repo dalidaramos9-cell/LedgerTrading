@@ -5,13 +5,13 @@ import { analyzeAccount } from '../lib/engine'
 import { money, signedMoney } from '../lib/fmt'
 import { useStageAutoAdvance } from '../hooks/useStageAutoAdvance'
 import CelebrationModal from '../components/CelebrationModal'
-import { Button, Badge, ProgressBar, EmptyState } from '../components/ui'
+import { Badge, ProgressBar, EmptyState } from '../components/ui'
 
 // Pestaña "Etapas": muestra el estado de las reglas del programa (en dólares)
 // y el progreso de las etapas de la cuenta activa.
 export default function StagesPage() {
   const account = useRouteAccount()
-  const { trades, payouts, updateAccount } = useData()
+  const { trades, payouts } = useData()
 
   const analysis = useMemo(() => {
     if (!account) return null
@@ -30,32 +30,6 @@ export default function StagesPage() {
         Elige una cuenta de la barra lateral para ver sus reglas y etapas.
       </EmptyState>
     )
-  }
-
-  async function moveStage(delta: number) {
-    if (!account) return
-    const totalStages = analysis?.stages.length ?? 0
-    if (delta === 1 && account.current_stage_index >= totalStages - 1) return
-    if (delta === -1 && account.current_stage_index <= 0) return
-    const nextIndex = account.current_stage_index + delta
-    let updated = {
-      ...account,
-      current_stage_index: nextIndex,
-      stage_start_pnl: analysis?.stats.totalPnl ?? 0,
-    }
-    if (account.rules.type === 'axi') {
-      const stages = account.rules.stages.map((st, i) => {
-        if (i < nextIndex) return { ...st, status: 'completed' as const }
-        if (i === nextIndex) return { ...st, status: 'current' as const }
-        return { ...st, status: 'pending' as const }
-      })
-      updated = { ...updated, rules: { ...account.rules, stages } }
-    }
-    try {
-      await updateAccount(updated)
-    } catch {
-      /* ignorar */
-    }
   }
 
   return (
@@ -107,34 +81,6 @@ export default function StagesPage() {
             })}
           </div>
         )}
-        {account.type === 'axi' ? (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              borderTop: '1px solid var(--border)',
-              paddingTop: 14,
-              marginTop: 10,
-              flexWrap: 'wrap',
-            }}
-          >
-            <span className="muted" style={{ fontSize: 13, flex: 1 }}>
-              Axi Select es manual: tú controlas cuándo cambiar de etapa.
-            </span>
-            <Button variant="ghost" sm disabled={account.current_stage_index <= 0} onClick={() => moveStage(-1)}>
-              ← Etapa anterior
-            </Button>
-            <Button
-              variant="primary"
-              sm
-              disabled={account.current_stage_index >= analysis.stages.length - 1}
-              onClick={() => moveStage(1)}
-            >
-              Siguiente etapa →
-            </Button>
-          </div>
-        ) : null}
       </div>
 
       {celebrated ? <CelebrationModal data={celebrated} onClose={dismiss} /> : null}

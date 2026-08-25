@@ -3,9 +3,10 @@ import { Account } from '../lib/types'
 import { AccountAnalysis } from '../lib/engine'
 import { useData } from '../contexts/DataContext'
 
-// Avance automático de etapas. Solo aplica a programas automáticos
-// (Fondeo de Futuros y Fondeo CFD). Axi Select es manual: el usuario
-// controla cuándo cambiar de etapa, así que aquí nunca se fuerza.
+// Avance automático de etapas. Aplica a todos los programas:
+// Fondeo de Futuros, Fondeo CFD y Axi Select. Al alcanzar el objetivo de la
+// etapa actual, la cuenta sube sola, se reinicia el punto de partida y se
+// muestra el modal de celebración.
 export function useStageAutoAdvance(account: Account | null, analysis: AccountAnalysis | null) {
   const { updateAccount } = useData()
   const [celebrated, setCelebrated] = useState<ReturnType<typeof toCelebration> | null>(null)
@@ -13,8 +14,6 @@ export function useStageAutoAdvance(account: Account | null, analysis: AccountAn
 
   useEffect(() => {
     if (!account || !analysis || advancing.current) return
-    // Axi Select es manual → no se auto-avanza.
-    if (account.type === 'axi') return
 
     const pending = analysis.stages.find((s) => s.needsAdvance && !s.isComplete)
     if (!pending) return
@@ -26,6 +25,15 @@ export function useStageAutoAdvance(account: Account | null, analysis: AccountAn
       ...account,
       current_stage_index: nextIndex,
       stage_start_pnl: analysis.stats.totalPnl,
+    }
+    // Para Axi Select, marca las etapas como completada/actual/pendiente.
+    if (account.rules.type === 'axi') {
+      const stages = account.rules.stages.map((st, i) => {
+        if (i < nextIndex) return { ...st, status: 'completed' as const }
+        if (i === nextIndex) return { ...st, status: 'current' as const }
+        return { ...st, status: 'pending' as const }
+      })
+      updated.rules = { ...account.rules, stages }
     }
 
     advancing.current = true

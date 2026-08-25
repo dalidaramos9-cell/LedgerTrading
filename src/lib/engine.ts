@@ -501,11 +501,10 @@ function computeStages(account: Account, totalPnl: number): StageProgress[] {
       },
     )
   } else if (account.type === 'axi' && account.rules.type === 'axi') {
-    // Axi Select es MANUAL: el usuario controla cuándo subir de etapa.
-    // El progreso se muestra solo como referencia informativa (needsAdvance siempre false).
+    // Axi Select: avance automático igual que Futuros/CFD. La meta de cada
+    // etapa se calcula como el profit target % sobre el equity mínimo.
     account.rules.stages.forEach((st, i) => {
       const isCurrent = i === account.current_stage_index
-      // Objetivo de $ informativo basado en el profit target % sobre el equity mínimo.
       const target = st.targetPct > 0 ? (st.minEquity * st.targetPct) / 100 : 0
       const progressPct =
         i < account.current_stage_index
@@ -523,7 +522,7 @@ function computeStages(account: Account, totalPnl: number): StageProgress[] {
         currentBalance: totalPnl,
         targetPct: st.targetPct,
         progressPct,
-        needsAdvance: false, // manual
+        needsAdvance: isCurrent && target > 0 && stageNet >= target - 0.001,
         isComplete: i < account.current_stage_index,
       })
     })

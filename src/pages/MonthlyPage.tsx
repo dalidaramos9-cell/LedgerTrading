@@ -55,7 +55,7 @@ export default function MonthlyPage() {
             <div className="panel-head"><span className="panel-title">Ganancia % por mes</span></div>
             <div className="chart-wrap">
               <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={chartData}>
+                <BarChart data={chartData} maxBarSize={48}>
                   <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} />
                   <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} width={44} unit="%" />
                   <Tooltip
