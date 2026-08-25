@@ -132,7 +132,9 @@ export default function DashboardPage() {
   const currentMonthPnl = analysis.monthly.find(
     (m) => m.year === nowDate.getFullYear() && m.month === nowDate.getMonth() + 1,
   )?.pnl ?? 0
-  const projectedMonthly = (currentMonthPnl * assignSplitPct) / 100
+  // Ganancia mensual del mes escalada al patrimonio apalancado (× multiplicador)
+  // sobre la que se aplica el profit split del trader.
+  const projectedMonthly = (currentMonthPnl * assignMult * assignSplitPct) / 100
 
   // Dominio del eje vertical: se ajusta al rango real de los datos con un
   // pequeño margen arriba/abajo, para que la variación de la cuenta se aprecie
