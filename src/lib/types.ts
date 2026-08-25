@@ -24,7 +24,7 @@ export type Direction = 'long' | 'short'
 export type TradeResult = 'win' | 'loss' | 'be'
 
 // Activos disponibles para elegir en el campo Instrumento.
-export const INSTRUMENTS = ['MNQ', 'NAS100']
+export const INSTRUMENTS = ['MNQ', 'NAS100', 'US30']
 
 // Valores para el separador "Otro" en los desplegables de instrumento.
 export const INSTRUMENT_OTHER = 'Otro'
