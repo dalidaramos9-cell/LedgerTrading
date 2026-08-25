@@ -37,12 +37,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (mounted) {
+    // Si no hay configuración de Supabase, no intentamos contactar el servidor:
+    // salimos del "cargando" al instante y mostramos la pantalla de login
+    // con el aviso de configuración (evita quedarse en blanco / loading infinito).
+    if (!configured) {
+      setInitializing(false)
+      return
+    }
+
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (!mounted) return
         setUser(data.session?.user ?? null)
         setInitializing(false)
-      }
-    })
+      })
+      .catch(() => {
+        // Si la llamada falla (URL inválida, red, etc.), no nos quedamos colgados.
+        if (mounted) {
+          setUser(null)
+          setInitializing(false)
+        }
+      })
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       if (mounted) {
