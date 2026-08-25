@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useData } from '../contexts/DataContext'
 import { useRouteAccount } from '../contexts/AccountRouteContext'
+import { useActivePhase } from '../contexts/ActivePhaseContext'
 import { analyzeAccount } from '../lib/engine'
 import { isoDate, signedMoney, monthName } from '../lib/fmt'
 import TradeForm from '../components/TradeForm'
@@ -9,6 +10,7 @@ import { Button, EmptyState } from '../components/ui'
 export default function CalendarPage() {
   const { trades, payouts } = useData()
   const account = useRouteAccount()
+  const { tradesForActive } = useActivePhase()
 
   const [cursor, setCursor] = useState(() => {
     const d = new Date()
@@ -20,10 +22,10 @@ export default function CalendarPage() {
     if (!account) return null
     return analyzeAccount(
       account,
-      trades.filter((t) => t.account_id === account.id),
+      tradesForActive(trades.filter((t) => t.account_id === account.id)),
       payouts.filter((p) => p.account_id === account.id),
     )
-  }, [account, trades, payouts])
+  }, [account, trades, payouts, tradesForActive])
 
   if (!account || !analysis) {
     return (

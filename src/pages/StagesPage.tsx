@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useData } from '../contexts/DataContext'
 import { useRouteAccount } from '../contexts/AccountRouteContext'
+import { useActivePhase } from '../contexts/ActivePhaseContext'
 import { analyzeAccount } from '../lib/engine'
 import { money, signedMoney } from '../lib/fmt'
 import { useStageAutoAdvance } from '../hooks/useStageAutoAdvance'
@@ -12,6 +13,7 @@ import { Badge, ProgressBar, EmptyState, Button, Modal, Field } from '../compone
 export default function StagesPage() {
   const account = useRouteAccount()
   const { trades, payouts, updateAccount } = useData()
+  const { activePhase, selectCurrent, selectHistory } = useActivePhase()
   const [capitalOpen, setCapitalOpen] = useState(false)
   const [capitalAmount, setCapitalAmount] = useState('')
 
@@ -87,8 +89,20 @@ export default function StagesPage() {
           <div>
             {analysis.stages.map((stage) => {
               const completed = stage.isComplete || stage.needsAdvance
+              const isCurrentStage = stage.stageIndex === account.current_stage_index
+              // En la vista se está mostrando la fase actual cuando activePhase es null.
+              const isViewingCurrent = isCurrentStage && (activePhase === null || activePhase.kind === 'current')
               return (
-                <div className="stage-row" key={stage.stageIndex}>
+                <div
+                  className="stage-row"
+                  key={stage.stageIndex}
+                  onClick={isCurrentStage ? () => selectCurrent() : undefined}
+                  style={{
+                    cursor: isCurrentStage ? 'pointer' : undefined,
+                    background: isViewingCurrent ? 'var(--accent-soft)' : undefined,
+                    borderRadius: 8,
+                  }}
+                >
                   <div className={`stage-ring ${completed ? 'ok' : ''}`}>
                     {stage.isComplete ? '✓' : stage.stageIndex + 1}
                   </div>
@@ -99,7 +113,9 @@ export default function StagesPage() {
                         <Badge tone="green">¡Listo! (objetivo cumplido)</Badge>
                       ) : stage.isComplete ? (
                         <Badge tone="green">Completada</Badge>
-                      ) : null}
+                      ) : (
+                        <Badge tone="blue">Fase actual · en vista</Badge>
+                      )}
                     </div>
                     <ProgressBar
                       value={stage.progressPct}
@@ -157,6 +173,9 @@ export default function StagesPage() {
               <div className="panel-head">
                 <span className="panel-title">Historial de fases completadas</span>
               </div>
+              <p className="muted" style={{ fontSize: 12, margin: '0 0 8px' }}>
+                Haz clic en una fase para ver en todos los paneles sus estadísticas. Haz clic en la fase actual para volver.
+              </p>
               <div className="table-wrap">
                 <table className="table">
                   <thead>
@@ -170,16 +189,23 @@ export default function StagesPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {axiHistory.map((h) => (
-                      <tr key={h.stageLabel}>
-                        <td><strong>{h.stageLabel}</strong></td>
-                        <td className="num">{money(h.endBalance)}</td>
-                        <td className={`num ${h.netPnl >= 0 ? 'pos' : 'neg'}`}>{signedMoney(h.netPnl)}</td>
-                        <td className="num">{h.trades}</td>
-                        <td className="num">{h.winRate.toFixed(0)}%</td>
-                        <td className="num">{h.capitalAdded > 0 ? money(h.capitalAdded) : '—'}</td>
-                      </tr>
-                    ))}
+                    {axiHistory.map((h) => {
+                      const isSel = activePhase?.kind === 'history' && activePhase.label === h.stageLabel
+                      return (
+                        <tr
+                          key={h.stageLabel}
+                          onClick={() => selectHistory(h)}
+                          style={{ cursor: 'pointer', background: isSel ? 'var(--accent-soft)' : undefined }}
+                        >
+                          <td><strong>{h.stageLabel}</strong></td>
+                          <td className="num">{money(h.endBalance)}</td>
+                          <td className={`num ${h.netPnl >= 0 ? 'pos' : 'neg'}`}>{signedMoney(h.netPnl)}</td>
+                          <td className="num">{h.trades}</td>
+                          <td className="num">{h.winRate.toFixed(0)}%</td>
+                          <td className="num">{h.capitalAdded > 0 ? money(h.capitalAdded) : '—'}</td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>

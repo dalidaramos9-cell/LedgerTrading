@@ -5,6 +5,7 @@ import {
 } from 'recharts'
 import { useData } from '../contexts/DataContext'
 import { useRouteAccount } from '../contexts/AccountRouteContext'
+import { useActivePhase } from '../contexts/ActivePhaseContext'
 import { analyzeAccount } from '../lib/engine'
 import { SESSIONS } from '../lib/types'
 import { money, signedMoney, signedNum, formatNum, weekdayLabel } from '../lib/fmt'
@@ -17,17 +18,18 @@ const BLUE = '#2563eb'
 export default function DashboardPage() {
   const { trades, payouts } = useData()
   const account = useRouteAccount()
+  const { tradesForActive } = useActivePhase()
 
   const analysis = useMemo(
     () =>
       account
         ? analyzeAccount(
             account,
-            trades.filter((t) => t.account_id === account.id),
+            tradesForActive(trades.filter((t) => t.account_id === account.id)),
             payouts.filter((p) => p.account_id === account.id),
           )
         : null,
-    [account, trades, payouts],
+    [account, trades, payouts, tradesForActive],
   )
   if (!account || !analysis) {
     return (

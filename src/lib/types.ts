@@ -98,6 +98,9 @@ export interface AxiRules {
   stage_capital_total?: number
   // Balance de la cuenta al entrar a la fase actual (tras ajuste de capital).
   current_stage_balance?: number
+  // Fecha (ISO) en la que la cuenta entró a la fase actual. Permite filtrar
+  // los trades de la fase activa por fecha.
+  current_stage_start_date?: string
   // Historial de fases completadas (para no perder datos al reiniciar el conteo).
   stage_history?: AxiStageHistory[]
 }

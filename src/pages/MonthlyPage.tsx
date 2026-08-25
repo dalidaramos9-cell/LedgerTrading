@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { useData } from '../contexts/DataContext'
 import { useRouteAccount } from '../contexts/AccountRouteContext'
+import { useActivePhase } from '../contexts/ActivePhaseContext'
 import { analyzeAccount } from '../lib/engine'
 import { money, signedMoney, monthName } from '../lib/fmt'
 import { EmptyState } from '../components/ui'
@@ -12,15 +13,16 @@ const RED = '#dc2626'
 export default function MonthlyPage() {
   const { trades, payouts } = useData()
   const account = useRouteAccount()
+  const { tradesForActive } = useActivePhase()
 
   const analysis = useMemo(() => {
     if (!account) return null
     return analyzeAccount(
       account,
-      trades.filter((t) => t.account_id === account.id),
+      tradesForActive(trades.filter((t) => t.account_id === account.id)),
       payouts.filter((p) => p.account_id === account.id),
     )
-  }, [account, trades, payouts])
+  }, [account, trades, payouts, tradesForActive])
 
   if (!account || !analysis) {
     return (

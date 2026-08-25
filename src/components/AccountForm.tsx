@@ -77,6 +77,11 @@ export default function AccountForm({
       setSaving(false)
       return
     }
+    let finalRules = rules
+    // Para Axi Select, asegura la fecha de inicio de la fase actual (si falta).
+    if (type === 'axi' && rules.type === 'axi' && !rules.current_stage_start_date) {
+      finalRules = { ...rules, current_stage_start_date: new Date(startDate + 'T12:00:00').toISOString() }
+    }
     const payload = {
       name: name.trim() || 'Mi cuenta',
       type,
@@ -85,7 +90,7 @@ export default function AccountForm({
       risk_per_trade: Number.isNaN(parseFloat(riskPct)) ? 0 : parseFloat(riskPct),
       start_date: new Date(startDate + 'T12:00:00').toISOString(),
       status,
-      rules,
+      rules: finalRules,
       current_stage_index: initial?.current_stage_index ?? 0,
       // Punto de partida de la etapa actual: al crear arranca en 0;
       // al editar se conserva a menos que cambie el tipo de programa.

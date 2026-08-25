@@ -37,6 +37,9 @@ export function useStageAutoAdvance(account: Account | null, analysis: AccountAn
       })
       const prevStage = account.rules.stages[pending.stageIndex]
       const netPnl = Math.round((analysis.stats.totalPnl - (account.stage_start_pnl ?? 0)) * 100) / 100
+      // Fecha de entrada a la fase que se acaba de completar (para el historial).
+      const prevStartDate = account.rules.current_stage_start_date ?? account.start_date
+      const nowIso = new Date().toISOString()
       const history = [
         ...(account.rules.stage_history ?? []),
         {
@@ -49,11 +52,12 @@ export function useStageAutoAdvance(account: Account | null, analysis: AccountAn
           winRate: analysis.stats.winRate,
           profitFactor: analysis.stats.profitFactor,
           capitalAdded: 0,
-          startDate: account.start_date,
-          endDate: new Date().toISOString(),
+          startDate: prevStartDate,
+          endDate: nowIso,
         },
       ]
-      updated.rules = { ...account.rules, stages, stage_history: history }
+      // La nueva fase arranca ahora: se setea su fecha de inicio.
+      updated.rules = { ...account.rules, stages, stage_history: history, current_stage_start_date: nowIso }
     }
 
     advancing.current = true

@@ -4,6 +4,7 @@ import { ACCOUNT_TYPE_LABELS, ACCOUNT_STATUS_LABELS, AccountStatus } from '../li
 import { money } from '../lib/fmt'
 import { Badge, EmptyState } from './ui'
 import { AccountRouteProvider } from '../contexts/AccountRouteContext'
+import { ActivePhaseProvider, useActivePhase } from '../contexts/ActivePhaseContext'
 
 const STATUS_TONE: Record<AccountStatus, string> = {
   active: 'blue',
@@ -66,8 +67,28 @@ export default function AccountTabs() {
 
   return (
     <AccountRouteProvider>
-      <AccountHeader account={account} />
-      <Outlet />
+      <ActivePhaseProvider>
+        <AccountHeader account={account} />
+        <PhaseBanner account={account} />
+        <Outlet />
+      </ActivePhaseProvider>
     </AccountRouteProvider>
+  )
+}
+
+// Muestra qué fase está activa en los paneles y permite volver a la actual.
+function PhaseBanner({ account }: { account: { type: string } }) {
+  const { activePhase, selectCurrent } = useActivePhase()
+  if (account.type !== 'axi') return null
+  if (!activePhase || activePhase.kind === 'current') return null
+  return (
+    <div
+      className="alert-banner warn"
+      style={{ marginBottom: 12, cursor: 'pointer' }}
+      onClick={() => selectCurrent()}
+      title="Ver la fase actual"
+    >
+      ⚠️ Mostrando la fase «{activePhase.label}» (histórica). Haz clic para volver a la fase actual.
+    </div>
   )
 }

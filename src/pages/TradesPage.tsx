@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useData } from '../contexts/DataContext'
 import { useRouteAccount } from '../contexts/AccountRouteContext'
+import { useActivePhase } from '../contexts/ActivePhaseContext'
 import { analyzeAccount } from '../lib/engine'
 import { Trade } from '../lib/types'
 import { signedMoney, shortDate, sessionLabel } from '../lib/fmt'
@@ -10,16 +11,17 @@ import { Button, EmptyState, ConfirmDialog, Badge } from '../components/ui'
 export default function TradesPage() {
   const { trades, deleteTrade } = useData()
   const account = useRouteAccount()
+  const { tradesForActive } = useActivePhase()
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Trade | null>(null)
   const [toDelete, setToDelete] = useState<Trade | null>(null)
 
   const filtered = useMemo(() => {
     if (!account) return []
-    return trades
-      .filter((t) => t.account_id === account.id)
-      .sort((a, b) => b.date.localeCompare(a.date))
-  }, [trades, account])
+    return tradesForActive(trades.filter((t) => t.account_id === account.id)).sort((a, b) =>
+      b.date.localeCompare(a.date),
+    )
+  }, [trades, account, tradesForActive])
 
   const analysis = useMemo(
     () => (account ? analyzeAccount(account, filtered, []) : null),
