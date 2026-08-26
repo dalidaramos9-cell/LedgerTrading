@@ -74,7 +74,21 @@ export default function AccountsPage() {
                   <Badge tone={STATUS_TONE[acc.status]}>{ACCOUNT_STATUS_LABELS[acc.status]}</Badge>
                 </div>
                 <div>
-                  <div className="account-balance">{money(an.stats.currentBalance)}</div>
+                  <div className="account-balance">
+                    {money(an.stats.currentBalance)}
+                    {acc.type === 'axi' && acc.rules.type === 'axi' && acc.rules.stages.length > 0 ? (
+                      <>
+                        {' '}
+                        <span className="muted" style={{ fontWeight: 500 }}>|</span>{' '}
+                        <span style={{ color: 'var(--green)' }}>
+                          {money(
+                            ((acc.initial_balance + (acc.rules.stage_capital_total ?? 0) + an.stats.totalPnl) *
+                              (acc.rules.stages[acc.current_stage_index]?.multiplier ?? 1)),
+                          )}
+                        </span>
+                      </>
+                    ) : null}
+                  </div>
                   <div className="page-sub" style={{ marginTop: 2 }}>
                     {an.stats.totalPnl >= 0 ? '+' : ''}
                     {money(an.stats.totalPnl)} · {an.stats.totalTrades} ops
