@@ -99,27 +99,12 @@ export default function DashboardPage() {
   const rentabilidad = (s.totalPnl / Math.max(rentBase, 1)) * 100
   const balanceForView = isCurrentView ? s.currentBalance + totalCapital : s.currentBalance
 
-  // Balance de entrada de la fase mostrada (punto de partida real de esa fase):
-  // - En una fase histórica se usa el startBalance del historial (el balance con
-  //   el que se entró a esa fase).
-  // - En la fase actual se usa current_stage_balance (balance real de entrada,
-  //   que ya incluye el capital final de la fase anterior + depósitos). Si no
-  //   existe (p. ej. primera fase sin avance), cae al initial_balance.
-  const viewHist =
-    activePhase?.kind === 'history' && account.rules.type === 'axi'
-      ? axiHistory.find((h) => h.stageLabel === activePhase.label)
-      : null
-  const phaseBaseBalance =
-    activePhase?.kind === 'history' && account.rules.type === 'axi'
-      ? (viewHist?.startBalance ?? account.initial_balance)
-      : account.rules.type === 'axi' && account.rules.current_stage_balance != null
-        ? account.rules.current_stage_balance
-        : account.initial_balance
-
-  // Curva de equity de la fase seleccionada: se re-basa al balance de entrada de
-  // esa fase (no al initial_balance global), para que refleje el balance real de
-  // la fase que se está viendo.
-  const offsetEquity = phaseBaseBalance - account.initial_balance
+  // Curva de equity de la fase seleccionada: se ancla de modo que su ÚLTIMO punto
+  // coincida con el balance actual mostrado (balanceForView). Esto garantiza que
+  // la curva termine exactamente en el balance actual, sin desajustes entre la
+  // curva y el hero del Dashboard.
+  const lastEquity = analysis.equity.length ? analysis.equity[analysis.equity.length - 1].balance : account.initial_balance
+  const offsetEquity = balanceForView - lastEquity
   const equityData = analysis.equity.map((p) => ({
     label: p.date.slice(5),
     balance: p.balance + offsetEquity,
@@ -141,6 +126,11 @@ export default function DashboardPage() {
   const axiStage =
     account.rules.type === 'axi' && viewIndex >= 0 ? account.rules.stages[viewIndex] : null
   const assignMult = axiStage?.multiplier ?? 1
+  // Registro del historial de la fase mostrada (para la base en fases históricas).
+  const viewHist =
+    activePhase?.kind === 'history' && account.rules.type === 'axi'
+      ? axiHistory.find((h) => h.stageLabel === activePhase.label)
+      : null
   // Base de capital del Desempeño de Asignación: en una fase histórica usa el
   // startBalance del historial; en la fase actual usa inicial + capital agregado.
   const assignBaseCap =
