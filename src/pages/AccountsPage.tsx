@@ -55,7 +55,26 @@ export default function AccountsPage() {
       ) : (
         <div className="accounts-grid">
           {accounts.map((acc) => {
-            const an = analyzeAccount(acc, trades.filter((t) => t.account_id === acc.id), payouts.filter((p) => p.account_id === acc.id))
+            const accTrades = trades.filter((t) => t.account_id === acc.id)
+            const an = analyzeAccount(acc, accTrades, payouts.filter((p) => p.account_id === acc.id))
+            // Balance actual de la FASE ACTUAL (coincide con el Dashboard): para Axi
+            // incluye el capital agregado; para el resto es el balance total.
+            const isAxiAcct = acc.type === 'axi'
+            const capitalAdded = isAxiAcct && acc.rules.type === 'axi' ? (acc.rules.stage_capital_total ?? 0) : 0
+            const balanceFase = an.stats.currentBalance + (isAxiAcct && acc.rules.type === 'axi' ? capitalAdded : 0)
+            // P&L de la fase actual (igual que el Dashboard: trades desde la fecha de
+            // inicio de la fase actual) y patrimonio de asignación.
+            let patrimonio = 0
+            if (isAxiAcct && acc.rules.type === 'axi' && acc.rules.stages.length > 0) {
+              const startStr = (acc.rules.current_stage_start_date ?? acc.start_date).slice(0, 10)
+              const faseTrades = accTrades.filter((t) => t.date.slice(0, 10) >= startStr)
+              const fasePnl =
+                faseTrades.length > 0
+                  ? analyzeAccount(acc, faseTrades, []).stats.totalPnl
+                  : 0
+              const mult = acc.rules.stages[acc.current_stage_index]?.multiplier ?? 1
+              patrimonio = ((acc.initial_balance + capitalAdded + fasePnl)) * mult
+            }
             return (
               <div
                 key={acc.id}
@@ -75,17 +94,12 @@ export default function AccountsPage() {
                 </div>
                 <div>
                   <div className="account-balance">
-                    {money(an.stats.currentBalance)}
-                    {acc.type === 'axi' && acc.rules.type === 'axi' && acc.rules.stages.length > 0 ? (
+                    {money(balanceFase)}
+                    {isAxiAcct && acc.rules.type === 'axi' && acc.rules.stages.length > 0 ? (
                       <>
                         {' '}
                         <span className="muted" style={{ fontWeight: 500 }}>|</span>{' '}
-                        <span style={{ color: 'var(--green)' }}>
-                          {money(
-                            ((acc.initial_balance + (acc.rules.stage_capital_total ?? 0) + an.stats.totalPnl) *
-                              (acc.rules.stages[acc.current_stage_index]?.multiplier ?? 1)),
-                          )}
-                        </span>
+                        <span style={{ color: 'var(--green)' }}>{money(patrimonio)}</span>
                       </>
                     ) : null}
                   </div>
