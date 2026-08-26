@@ -97,7 +97,17 @@ export default function DashboardPage() {
   // capital inicial (rendimiento puro del trading de esa fase).
   const rentBase = isCurrentView ? account.initial_balance + totalCapital : account.initial_balance
   const rentabilidad = (s.totalPnl / Math.max(rentBase, 1)) * 100
-  const balanceForView = isCurrentView ? s.currentBalance + totalCapital : s.currentBalance
+  // Balance actual de la FASE ACTUAL: parte del balance real de entrada a la fase
+  // (current_stage_balance, que ya incluye el capital final de la fase anterior +
+  // depósitos) y suma el P&L de la fase. Así coincide con el último punto de la
+  // curva de equity. s.currentBalance usa initial_balance como base; lo desplazamos.
+  const stageBaseAdjust =
+    isCurrentView && account.rules.type === 'axi' && account.rules.current_stage_balance != null
+      ? account.rules.current_stage_balance - account.initial_balance
+      : account.rules.type === 'axi'
+        ? totalCapital
+        : 0
+  const balanceForView = isCurrentView ? s.currentBalance + stageBaseAdjust : s.currentBalance
 
   // Curva de equity de la fase seleccionada: se ancla de modo que su ÚLTIMO punto
   // coincida con el balance actual mostrado (balanceForView). Esto garantiza que
@@ -132,12 +142,15 @@ export default function DashboardPage() {
       ? axiHistory.find((h) => h.stageLabel === activePhase.label)
       : null
   // Base de capital del Desempeño de Asignación: en una fase histórica usa el
-  // startBalance del historial; en la fase actual usa inicial + capital agregado.
+  // startBalance del historial; en la fase actual usa el balance real de entrada
+  // (current_stage_balance) para que el patrimonio sea coherente con el balance
+  // de la fase. Como fallback, inicial + capital agregado.
   const assignBaseCap =
     activePhase?.kind === 'history' && account.rules.type === 'axi'
       ? (viewHist?.startBalance ?? account.initial_balance)
-      : account.initial_balance +
-        (account.rules.type === 'axi' ? account.rules.stage_capital_total ?? 0 : 0)
+      : account.rules.type === 'axi' && account.rules.current_stage_balance != null
+        ? account.rules.current_stage_balance
+        : account.initial_balance + (account.rules.type === 'axi' ? account.rules.stage_capital_total ?? 0 : 0)
   const assignBase = assignBaseCap * assignMult // capital apalancado
   const assignGain = s.totalPnl * assignMult // ganancia escalada (P&L de la fase vista)
   const assignEquity = assignBase + assignGain
