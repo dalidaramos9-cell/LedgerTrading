@@ -98,9 +98,27 @@ export default function DashboardPage() {
   const rentBase = isCurrentView ? account.initial_balance + totalCapital : account.initial_balance
   const rentabilidad = (s.totalPnl / Math.max(rentBase, 1)) * 100
   const balanceForView = isCurrentView ? s.currentBalance + totalCapital : s.currentBalance
+
+  // Balance de entrada de la fase mostrada (punto de partida real de esa fase):
+  // en una fase histórica se usa el startBalance del historial; en la actual el
+  // capital con aportes. Se usa para re-basar la curva de equity a esa fase.
+  const viewHist =
+    activePhase?.kind === 'history' && account.rules.type === 'axi'
+      ? axiHistory.find((h) => h.stageLabel === activePhase.label)
+      : null
+  const phaseBaseBalance =
+    activePhase?.kind === 'history' && account.rules.type === 'axi'
+      ? (viewHist?.startBalance ?? account.initial_balance)
+      : account.initial_balance +
+        (account.rules.type === 'axi' ? account.rules.stage_capital_total ?? 0 : 0)
+
+  // Curva de equity de la fase seleccionada: se re-basa al balance de entrada de
+  // esa fase (no al initial_balance global), para que refleje el balance real de
+  // la fase que se está viendo.
+  const offsetEquity = phaseBaseBalance - account.initial_balance
   const equityData = analysis.equity.map((p) => ({
     label: p.date.slice(5),
-    balance: p.balance,
+    balance: p.balance + offsetEquity,
   }))
 
   // ---- Desempeño de la Cuenta de Asignación (solo Axi Select) ----
@@ -119,17 +137,9 @@ export default function DashboardPage() {
   const axiStage =
     account.rules.type === 'axi' && viewIndex >= 0 ? account.rules.stages[viewIndex] : null
   const assignMult = axiStage?.multiplier ?? 1
-  // Base de capital de la fase mostrada: en una fase histórica se usa el balance
-  // de entrada guardado en el historial; en la fase actual, el capital con aportes.
-  const viewHist =
-    activePhase?.kind === 'history' && account.rules.type === 'axi'
-      ? axiHistory.find((h) => h.stageLabel === activePhase.label)
-      : null
-  const assignBaseCap =
-    activePhase?.kind === 'history' && account.rules.type === 'axi'
-      ? viewHist?.startBalance ?? account.initial_balance
-      : account.initial_balance +
-        (account.rules.type === 'axi' ? account.rules.stage_capital_total ?? 0 : 0)
+  // Base de capital de la fase mostrada (reutiliza el balance de entrada ya
+  // calculado arriba: historial para fase histórica / capital con aportes para la actual).
+  const assignBaseCap = phaseBaseBalance
   const assignBase = assignBaseCap * assignMult // capital apalancado
   const assignGain = s.totalPnl * assignMult // ganancia escalada (P&L de la fase vista)
   const assignEquity = assignBase + assignGain
