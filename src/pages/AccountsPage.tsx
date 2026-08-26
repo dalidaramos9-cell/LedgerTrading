@@ -57,23 +57,28 @@ export default function AccountsPage() {
           {accounts.map((acc) => {
             const accTrades = trades.filter((t) => t.account_id === acc.id)
             const an = analyzeAccount(acc, accTrades, payouts.filter((p) => p.account_id === acc.id))
-            // Balance actual de la FASE ACTUAL (coincide con el Dashboard): para Axi
-            // incluye el capital agregado; para el resto es el balance total.
             const isAxiAcct = acc.type === 'axi'
-            const capitalAdded = isAxiAcct && acc.rules.type === 'axi' ? (acc.rules.stage_capital_total ?? 0) : 0
-            const balanceFase = an.stats.currentBalance + (isAxiAcct && acc.rules.type === 'axi' ? capitalAdded : 0)
-            // P&L de la fase actual (igual que el Dashboard: trades desde la fecha de
-            // inicio de la fase actual) y patrimonio de asignación.
+            // Fase actual (para Axi) y su multiplicador.
+            const currentStage =
+              isAxiAcct && acc.rules.type === 'axi' && acc.rules.stages.length > 0
+                ? acc.rules.stages[acc.current_stage_index] ?? null
+                : null
+            // Análisis de la fase actual (trades desde su fecha de inicio), igual que
+            // el Dashboard, para que el balance coincida.
+            let balanceFase = an.stats.currentBalance
             let patrimonio = 0
             if (isAxiAcct && acc.rules.type === 'axi' && acc.rules.stages.length > 0) {
               const startStr = (acc.rules.current_stage_start_date ?? acc.start_date).slice(0, 10)
               const faseTrades = accTrades.filter((t) => t.date.slice(0, 10) >= startStr)
-              const fasePnl =
-                faseTrades.length > 0
-                  ? analyzeAccount(acc, faseTrades, []).stats.totalPnl
-                  : 0
-              const mult = acc.rules.stages[acc.current_stage_index]?.multiplier ?? 1
-              patrimonio = ((acc.initial_balance + capitalAdded + fasePnl)) * mult
+              const anFase = analyzeAccount(acc, faseTrades, payouts.filter((p) => p.account_id === acc.id))
+              const stageBase =
+                acc.rules.current_stage_balance != null ? acc.rules.current_stage_balance : acc.initial_balance
+              // Balance de la fase: balance real de entrada + P&L de la fase (coincide
+              // con el Dashboard y la curva de equity).
+              balanceFase = anFase.stats.currentBalance + (stageBase - acc.initial_balance)
+              const fasePnl = anFase.stats.totalPnl
+              const mult = currentStage?.multiplier ?? 1
+              patrimonio = (stageBase + fasePnl) * mult
             }
             return (
               <div
@@ -107,6 +112,22 @@ export default function AccountsPage() {
                     {an.stats.totalPnl >= 0 ? '+' : ''}
                     {money(an.stats.totalPnl)} · {an.stats.totalTrades} ops
                   </div>
+                  {isAxiAcct && acc.rules.type === 'axi' && acc.rules.stages.length > 0 && currentStage ? (
+                    <div
+                      style={{
+                        marginTop: 8,
+                        display: 'inline-block',
+                        padding: '3px 10px',
+                        borderRadius: 999,
+                        background: 'var(--accent-soft)',
+                        color: 'var(--accent-strong)',
+                        fontWeight: 700,
+                        fontSize: 12,
+                      }}
+                    >
+                      Fase actual: {currentStage.label}
+                    </div>
+                  ) : null}
                 </div>
                 <div className="risk-row">
                   <span>Inicial: {money(acc.initial_balance)}</span>
