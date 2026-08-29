@@ -1,22 +1,19 @@
-// Logo vectorial de Ledger (P&L / velas ascendentes sobre gradiente de marca).
-// Se usa en la marca de la app y en el login. El redondeo y el relleno se
-// controlan con el tamaño (el SVG se escala manteniendo proporción).
+// Logo de marca de Ledger: el simbolo "Ledger card + total" - un unico elemento
+// que evoca el registro/balance contable de la app (un rectangulo redondeado con
+// un nodo central y el doble rasgo contable al pie). Paleta REAL de la app:
+// fondo azul marino #0b1220, acento azul #4f8cff y azul claro #7aa8ff.
+// Al ser un trazo simple (sin gradiente) se lee con claridad a tamaño pequeno.
 export default function LedgerLogo({ size = 34 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" role="img" aria-label="Ledger">
-      <defs>
-        <linearGradient id="lg-grad" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#4f8cff" />
-          <stop offset="100%" stopColor="#0ea5e9" />
-        </linearGradient>
-      </defs>
-      <rect x="1" y="1" width="30" height="30" rx="8" fill="url(#lg-grad)" />
-      <g stroke="#fff" strokeWidth="2.6" strokeLinecap="round" fill="none">
-        <path d="M8 23 L8 17 M7 18.6 L9 18.6 M8 20 L8 17" />
-        <path d="M14 20 L14 11 M13 12.6 L15 12.6 M14 15 L14 11" />
-        <path d="M20 16 L20 8 M19 9.6 L21 9.6" />
-      </g>
-      <path d="M8 18.4 L14 12.4 L20 11" stroke="#7ef0a0" strokeWidth="2.4" fill="none" strokeLinecap="round" />
+      <rect x="5" y="7" width="22" height="18" rx="6" fill="#0b1220" stroke="#4f8cff" strokeWidth="3" />
+      <circle cx="16" cy="13.5" r="3.6" fill="#7aa8ff" />
+      <path
+        d="M8.5 22.5 H23.5 M8.5 25.2 H23.5"
+        stroke="#4f8cff"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
     </svg>
   )
 }
