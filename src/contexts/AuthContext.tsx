@@ -78,7 +78,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const signIn = useCallback(async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    // Timeout: si el servidor de Supabase tarda o se queda colgado (red lenta,
+    // DNS, proxy o una sesión en mal estado), no dejamos el botón en
+    // "Procesando…" para siempre. Mostramos un mensaje claro y controlable.
+    const result = await withTimeout(
+      supabase.auth.signInWithPassword({ email, password }),
+      8000,
+    )
+    if (result === null) {
+      return {
+        error:
+          'El servidor tarda demasiado en responder. Revisa tu conexión a internet y vuelve a intentarlo.',
+      }
+    }
+    const { error } = result
     return { error: error ? errorMessage(error.message) : null }
   }, [])
 
@@ -116,8 +129,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut()
+    // Cerrar sesión debe ser rápido y fiable. Aunque el servidor esté lento o caído,
+    // limpiamos la sesión local de inmediato para que la app no se quede colgada
+    // ni reutilice una sesión "zombie" la próxima vez (comportamiento que aparece
+    // tras un periodo sin usar la app, con tokens que ya no se validan bien).
+    try {
+      await withTimeout(supabase.auth.signOut(), 4000)
+    } catch {
+      /* El servidor no respondió: igualmente cerramos sesión localmente. */
+    }
+    // Limpia la sesión guardada por Supabase en el almacenamiento del navegador,
+    // para que al recargar no se recupere una sesión antigua/expirada.
+    try {
+      Object.keys(localStorage)
+        .filter((k) => k.startsWith('sb-') && k.endsWith('-auth-token'))
+        .forEach((k) => localStorage.removeItem(k))
+    } catch {
+      /* ignorar: algunos navegadores restringen el acceso a localStorage */
+    }
     setUser(null)
+    setInitializing(false)
   }, [])
 
   return (
@@ -135,6 +166,19 @@ function errorMessage(msg: string): string {
   if (/Password should be/i.test(msg)) return 'La contraseña debe tener al menos 6 caracteres.'
   if (/rate limited/i.test(msg)) return 'Demasiados intentos. Espera un momento.'
   return msg
+}
+
+// Cierra una promesa de Supabase (auth) con un límite de tiempo. Si no se
+// resuelve/rechaza dentro de `ms`, devuelve `null` para que la UI nunca se
+// quede colgada en "Procesando…" o en un cierre de sesión infinito.
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), ms)
+  })
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer) clearTimeout(timer)
+  }) as Promise<T | null>
 }
 
 export function useAuth(): AuthCtx {
