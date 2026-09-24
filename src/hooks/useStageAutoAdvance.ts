@@ -101,7 +101,9 @@ export function useStageAutoAdvance(account: Account | null, analysis: AccountAn
         stages,
         stage_history: history,
         current_stage_start_date: nextStartIso,
-        current_stage_balance: analysis.stats.currentBalance,
+        // La nueva fase arranca con el capital inicial del programa (la cuenta se
+        // "repone"), no con el balance con el que cerró la fase anterior.
+        current_stage_balance: account.initial_balance,
       }
     } else if (account.rules.type === 'futures') {
       // Fondeo Futuros: igual que Axi, se archiva la fase cerrada (Evaluación o
@@ -131,7 +133,9 @@ export function useStageAutoAdvance(account: Account | null, analysis: AccountAn
           ...account.rules,
           stage_history: history,
           current_stage_start_date: nextStartIso,
-          current_stage_balance: analysis.stats.currentBalance,
+          // La nueva fase arranca con el capital inicial (la cuenta se "repone");
+          // el resultado de la fase cerrada queda archivado en el historial.
+          current_stage_balance: account.initial_balance,
         },
       }
     }

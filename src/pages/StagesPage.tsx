@@ -131,6 +131,26 @@ export default function StagesPage() {
     }
   }
 
+  // Repone el capital de entrada de la fase activa al capital inicial de la
+  // cuenta. Se usa para corregir cuentas que avanzaron de fase con el balance
+  // final de la fase anterior (o para reaplicar el reset a mano).
+  async function restorePhaseCapital() {
+    if (!account) return
+    if (account.rules.type !== 'axi' && account.rules.type !== 'futures') return
+    const updated = {
+      ...account,
+      rules: {
+        ...account.rules,
+        current_stage_balance: account.initial_balance,
+      },
+    }
+    try {
+      await updateAccount(updated)
+    } catch {
+      /* ignorar */
+    }
+  }
+
   // Guarda la fecha de inicio manual de la fase actual (para poder registrar
   // operaciones del pasado si la cuenta ya venía en una etapa avanzada).
   // Aplica a Axi Select y Fondeo Futuros (programas con reset por fase).
@@ -290,6 +310,15 @@ export default function StagesPage() {
             <span>Balance de la fase (entrada + P&L)</span>
             <strong>{money(analysis.stats.currentBalance)}</strong>
           </div>
+          {isFuturesAccount &&
+          (account.rules.current_stage_balance ?? account.initial_balance) !==
+            account.initial_balance ? (
+            <div style={{ marginTop: 10 }}>
+              <Button variant="subtle" onClick={restorePhaseCapital}>
+                Reponer al capital inicial ({money(account.initial_balance)})
+              </Button>
+            </div>
+          ) : null}
           {canEditStartDate ? (
             <div style={{ marginTop: 12 }}>
               <Field label="Fecha de inicio de la fase actual (permite registrar operaciones del pasado)">
@@ -343,6 +372,12 @@ export default function StagesPage() {
               <Button variant="primary" sm onClick={() => setCapitalOpen(true)}>
                 + Agregar capital
               </Button>
+              {(account.rules.current_stage_balance ?? account.initial_balance) !==
+              account.initial_balance ? (
+                <Button variant="subtle" sm onClick={restorePhaseCapital}>
+                  Reponer al capital inicial ({money(account.initial_balance)})
+                </Button>
+              ) : null}
               {suggestedCapital > 0 ? (
                 <span className="muted" style={{ fontSize: 13 }}>
                   Recomendado agregar {money(suggestedCapital)} para cubrir mínimo + pérdida máx de la etapa.
