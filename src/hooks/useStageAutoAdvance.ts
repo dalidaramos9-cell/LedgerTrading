@@ -53,11 +53,26 @@ export function useStageAutoAdvance(account: Account | null, analysis: AccountAn
     const endIso = new Date(endDateStr + 'T12:00:00').toISOString()
     const nextStartIso = new Date(nextStartDateStr + 'T12:00:00').toISOString()
 
-    const updated: Account = {
+    // Programas con reset de capital/estadísticas por fase: Axi Select y Fondeo
+    // Futuros. En ellos el motor ya cuenta solo los trades desde la fecha de
+    // inicio de la fase, así que el P&L de la fase arranca en 0 igual que su
+    // punto de partida (`stage_start_pnl`). En CFD (sin reset) el P&L sigue
+    // siendo acumulado y el punto de partida se desplaza al acumulado actual.
+    const hasPhaseReset =
+      account.rules.type === 'axi' || account.rules.type === 'futures'
+    let updated: Account = {
       ...account,
       current_stage_index: nextIndex,
-      stage_start_pnl: analysis.stats.totalPnl,
+      stage_start_pnl: hasPhaseReset ? 0 : analysis.stats.totalPnl,
     }
+    // Reset de capital y estadísticas al pasar de fase (sin perder los trades ya
+    // registrados): se guarda el resumen de la fase cerrada en `stage_history` y
+    // se reinician los puntos de partida para que la nueva fase arranque en cero.
+    const phasePnl = analysis.stats.totalPnl - (hasPhaseReset ? 0 : account.stage_start_pnl ?? 0)
+    const stageNet = Math.round(phasePnl * 100) / 100
+    const stageStartDate = account.rules.type === 'axi' || account.rules.type === 'futures'
+      ? account.rules.current_stage_start_date ?? account.start_date
+      : account.start_date
     if (account.rules.type === 'axi') {
       const stages = account.rules.stages.map((st, i) => {
         if (i < nextIndex) return { ...st, status: 'completed' as const }
@@ -65,7 +80,6 @@ export function useStageAutoAdvance(account: Account | null, analysis: AccountAn
         return { ...st, status: 'pending' as const }
       })
       const prevStage = account.rules.stages[pendingAdvance.nextIndex - 1]
-      const netPnl = Math.round((analysis.stats.totalPnl - (account.stage_start_pnl ?? 0)) * 100) / 100
       const history = [
         ...(account.rules.stage_history ?? []),
         {
@@ -73,12 +87,12 @@ export function useStageAutoAdvance(account: Account | null, analysis: AccountAn
           minEquity: prevStage?.minEquity ?? 0,
           startBalance: Math.round(account.rules.current_stage_balance ?? account.initial_balance),
           endBalance: Math.round(analysis.stats.currentBalance),
-          netPnl,
+          netPnl: stageNet,
           trades: analysis.stats.totalTrades,
           winRate: analysis.stats.winRate,
           profitFactor: analysis.stats.profitFactor,
           capitalAdded: 0,
-          startDate: account.rules.current_stage_start_date ?? account.start_date,
+          startDate: stageStartDate,
           endDate: endIso,
         },
       ]
@@ -88,6 +102,37 @@ export function useStageAutoAdvance(account: Account | null, analysis: AccountAn
         stage_history: history,
         current_stage_start_date: nextStartIso,
         current_stage_balance: analysis.stats.currentBalance,
+      }
+    } else if (account.rules.type === 'futures') {
+      // Fondeo Futuros: igual que Axi, se archiva la fase cerrada (Evaluación o
+      // Colchón) y se marca el nuevo balance de entrada para que capital y
+      // estadísticas se reinicien en la siguiente fase (Fondeo incluido).
+      const history = [
+        ...(account.rules.stage_history ?? []),
+        {
+          stageLabel: pendingAdvance.stageLabel,
+          stageIndex: pendingAdvance.nextIndex - 1,
+          startBalance: Math.round(account.rules.current_stage_balance ?? account.initial_balance),
+          endBalance: Math.round(analysis.stats.currentBalance),
+          netPnl: stageNet,
+          trades: analysis.stats.totalTrades,
+          winRate: analysis.stats.winRate,
+          profitFactor: analysis.stats.profitFactor,
+          startDate: stageStartDate,
+          endDate: endIso,
+        },
+      ]
+      const status: Account['status'] =
+        nextIndex >= 2 ? 'funded' : nextIndex === 1 ? 'cushion' : 'evaluation'
+      updated = {
+        ...updated,
+        status,
+        rules: {
+          ...account.rules,
+          stage_history: history,
+          current_stage_start_date: nextStartIso,
+          current_stage_balance: analysis.stats.currentBalance,
+        },
       }
     }
 

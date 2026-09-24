@@ -3,6 +3,7 @@ import { useData } from '../contexts/DataContext'
 import { useRouteAccount } from '../contexts/AccountRouteContext'
 import { useActivePhase } from '../contexts/ActivePhaseContext'
 import { analyzeAccount } from '../lib/engine'
+import { AxiStageHistory } from '../lib/types'
 import { money, signedMoney, isoDate, shortDate } from '../lib/fmt'
 import { useStageAutoAdvance } from '../hooks/useStageAutoAdvance'
 import CelebrationModal from '../components/CelebrationModal'
@@ -27,12 +28,25 @@ export default function StagesPage() {
   }, [account, trades, payouts])
 
   // Estadísticas de la fase activa seleccionada (para ver los datos de esa fase).
+  // En una fase PASADA se desactiva el reset por fase (`scope: 'full'`) y se
+  // parte del balance con el que esa fase arrancó, para reproducir los datos
+  // guardados en `stage_history`.
   const phaseAnalysis = useMemo(() => {
     if (!account) return null
+    const viewingHistory = activePhase?.kind === 'history'
+    const histEntry =
+      viewingHistory && (account.rules.type === 'axi' || account.rules.type === 'futures')
+        ? (account.rules.stage_history ?? []).find((h) => h.stageLabel === activePhase.label) ?? null
+        : null
+    const baseAccount =
+      histEntry != null
+        ? { ...account, initial_balance: histEntry.startBalance }
+        : account
     return analyzeAccount(
-      account,
+      baseAccount,
       tradesForActive(trades.filter((t) => t.account_id === account.id)),
       payouts.filter((p) => p.account_id === account.id),
+      { scope: viewingHistory ? 'full' : 'auto' },
     )
   }, [account, trades, payouts, tradesForActive, activePhase])
 
@@ -71,15 +85,28 @@ export default function StagesPage() {
     account.type === 'axi' && account.rules.type === 'axi'
       ? account.rules.stage_capital_total ?? 0
       : 0
-  const axiHistory =
-    account.type === 'axi' && account.rules.type === 'axi'
+  // Historial de fases completadas (Axi Select y Fondeo Futuros).
+  const stageHistory =
+    account.rules.type === 'axi' || account.rules.type === 'futures'
       ? account.rules.stage_history ?? []
       : []
+  const isAxiAccount = account.type === 'axi' && account.rules.type === 'axi'
+  const isFuturesAccount = account.rules.type === 'futures'
+  // Con el reset por fase, las estadísticas de la fase actual ya vienen
+  // normalizadas (solo la fase activa + balance de entrada de la fase).
+  const currentStats = phaseAnalysis ?? analysis
+  const currentBetaLabel = isFuturesAccount
+    ? 'Balance de la fase'
+    : 'Balance actual'
+  const currentBetaValue = isFuturesAccount
+    ? currentStats.stats.currentBalance
+    : balanceNow + axiCapital
   // Fecha de inicio de la fase actual (para mostrarla y permitir editarla).
   const phaseStartDate =
-    account.rules.type === 'axi' && account.rules.current_stage_start_date
+    account.rules.type !== 'cfd' && account.rules.current_stage_start_date
       ? isoDate(new Date(account.rules.current_stage_start_date))
-      : isoDate(new Date())
+      : isoDate(new Date(account.start_date))
+  const canEditStartDate = isAxiAccount || isFuturesAccount
 
   async function addCapital() {
     // Si no se escribió un monto, se aplica el recomendado (mínimo + pérdida máx).
@@ -106,9 +133,10 @@ export default function StagesPage() {
 
   // Guarda la fecha de inicio manual de la fase actual (para poder registrar
   // operaciones del pasado si la cuenta ya venía en una etapa avanzada).
+  // Aplica a Axi Select y Fondeo Futuros (programas con reset por fase).
   async function setPhaseStartDate(newDate: string) {
     if (!account || !newDate) return
-    if (!(account.rules.type === 'axi')) return
+    if (account.rules.type !== 'axi' && account.rules.type !== 'futures') return
     const updated = {
       ...account,
       rules: {
@@ -136,18 +164,21 @@ export default function StagesPage() {
                 : 'Estadísticas de la fase actual'}
             </span>
           </div>
+          <p className="muted" style={{ fontSize: 12, margin: '0 0 8px' }}>
+            {activePhase?.kind === 'history'
+              ? 'Datos guardados de esa fase (conservados al pasar de etapa).'
+              : 'Capital y estadísticas de la fase actual: se reinician al pasar de etapa, sin perder los trades anteriores.'}
+          </p>
           <div className="stat-grid">
             <Mini
-              label={activePhase?.kind === 'history' ? 'Balance (fase)' : 'Balance actual'}
+              label={activePhase?.kind === 'history' ? 'Balance (fase)' : currentBetaLabel}
               value={money(
-                activePhase?.kind === 'history'
-                  ? phaseAnalysis.stats.currentBalance
-                  : balanceNow + axiCapital,
+                activePhase?.kind === 'history' ? currentStats.stats.currentBalance : currentBetaValue,
               )}
             />
-            <Mini label="P&L" value={signedMoney(phaseAnalysis.stats.totalPnl)} pos={phaseAnalysis.stats.totalPnl > 0} />
-            <Mini label="Operaciones" value={String(phaseAnalysis.stats.totalTrades)} />
-            <Mini label="Win rate" value={`${phaseAnalysis.stats.winRate.toFixed(1)}%`} />
+            <Mini label="P&L" value={signedMoney(currentStats.stats.totalPnl)} pos={currentStats.stats.totalPnl > 0} />
+            <Mini label="Operaciones" value={String(currentStats.stats.totalTrades)} />
+            <Mini label="Win rate" value={`${currentStats.stats.winRate.toFixed(1)}%`} />
           </div>
         </div>
       ) : null}
@@ -165,9 +196,12 @@ export default function StagesPage() {
             {analysis.stages.map((stage) => {
               const completed = stage.isComplete || stage.needsAdvance
               const isCurrentStage = stage.stageIndex === account.current_stage_index
-              // Registro del historial de Axi que corresponde a esta etapa (para
-              // sus fechas y para poder volver a verla seleccionándola).
-              const histMatch = isCurrentStage ? null : axiHistory.find((h) => h.stageLabel === stage.stageLabel) ?? null
+              // Registro del historial de fases completadas (Axi Select o
+              // Fondeo Futuros) que corresponde a esta etapa (para sus fechas y
+              // para poder volver a verla seleccionándola).
+              const histMatch = isCurrentStage
+                ? null
+                : stageHistory.find((h) => h.stageLabel === stage.stageLabel) ?? null
               // En la vista se está mostrando la fase actual cuando activePhase es null.
               const isViewingCurrent = isCurrentStage && (activePhase === null || activePhase.kind === 'current')
               const isViewingThis = isCurrentStage
@@ -232,7 +266,46 @@ export default function StagesPage() {
         )}
       </div>
 
-      {account.type === 'axi' && account.rules.type === 'axi' ? (
+      {isFuturesAccount ? (
+        <div className="panel">
+          <div className="panel-head">
+            <span className="panel-title">Capital de la fase (Fondeo Futuros)</span>
+          </div>
+          <p className="muted" style={{ fontSize: 12, margin: '0 0 8px' }}>
+            Al pasar de fase (Evaluación → Colchón → Fondeo) el capital y las estadísticas se reinician:
+            la nueva fase arranca en el balance de entrada y solo cuenta los trades de esa fase. Los
+            trades anteriores se conservan en el historial.
+          </p>
+          <div className="stage-stat-row">
+            <span>Balance de entrada de la fase</span>
+            <strong style={{ color: 'var(--text-muted)' }}>
+              {money(
+                (isFuturesAccount
+                  ? account.rules.current_stage_balance
+                  : undefined) ?? account.initial_balance,
+              )}
+            </strong>
+          </div>
+          <div className="stage-stat-row" style={{ marginTop: 6 }}>
+            <span>Balance de la fase (entrada + P&L)</span>
+            <strong>{money(analysis.stats.currentBalance)}</strong>
+          </div>
+          {canEditStartDate ? (
+            <div style={{ marginTop: 12 }}>
+              <Field label="Fecha de inicio de la fase actual (permite registrar operaciones del pasado)">
+                <input
+                  type="date"
+                  className="input"
+                  value={phaseStartDate}
+                  onChange={(e) => setPhaseStartDate(e.target.value)}
+                />
+              </Field>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {isAxiAccount ? (
         <>
           <div className="panel">
             <div className="panel-head">
@@ -278,54 +351,23 @@ export default function StagesPage() {
             </div>
           </div>
 
-          {axiHistory.length > 0 ? (
-            <div className="panel">
-              <div className="panel-head">
-                <span className="panel-title">Historial de fases completadas</span>
-              </div>
-              <p className="muted" style={{ fontSize: 12, margin: '0 0 8px' }}>
-                Haz clic en una fase para ver en todos los paneles sus estadísticas. Haz clic en la fase actual para volver.
-              </p>
-              <div className="table-wrap">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Fase</th>
-                      <th>Fechas</th>
-                      <th className="num">Balance final</th>
-                      <th className="num">P&L</th>
-                      <th className="num">Operaciones</th>
-                      <th className="num">Win rate</th>
-                      <th className="num">Capital agreg.</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {axiHistory.map((h) => {
-                      const isSel = activePhase?.kind === 'history' && activePhase.label === h.stageLabel
-                      return (
-                        <tr
-                          key={h.stageLabel}
-                          onClick={() => selectHistory(h)}
-                          style={{ cursor: 'pointer', background: isSel ? 'var(--accent-soft)' : undefined }}
-                        >
-                          <td><strong>{h.stageLabel}</strong></td>
-                          <td className="muted">
-                            {shortDate(h.startDate)} → {shortDate(h.endDate)}
-                          </td>
-                          <td className="num">{money(h.endBalance)}</td>
-                          <td className={`num ${h.netPnl >= 0 ? 'pos' : 'neg'}`}>{signedMoney(h.netPnl)}</td>
-                          <td className="num">{h.trades}</td>
-                          <td className="num">{h.winRate.toFixed(0)}%</td>
-                          <td className="num">{h.capitalAdded > 0 ? money(h.capitalAdded) : '—'}</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+          {isAxiAccount && stageHistory.length > 0 ? (
+            <HistoryTable
+              history={stageHistory}
+              activeLabel={activePhase?.kind === 'history' ? activePhase.label : null}
+              onSelect={selectHistory}
+              showCapital
+            />
           ) : null}
         </>
+      ) : null}
+
+      {isFuturesAccount && stageHistory.length > 0 ? (
+        <HistoryTable
+          history={stageHistory}
+          activeLabel={activePhase?.kind === 'history' ? activePhase.label : null}
+          onSelect={selectHistory}
+        />
       ) : null}
 
       <Modal open={capitalOpen} onClose={() => setCapitalOpen(false)} title="Agregar capital (Axi Select)">
@@ -721,6 +763,73 @@ function RuleStatusUSD({ account }: { account: NonNullable<ReturnType<typeof use
         </div>
       ) : null}
 
+    </div>
+  )
+}
+
+// Tabla del historial de fases completadas (Axi Select y Fondeo Futuros).
+// Cada fila se puede seleccionar para ver las estadísticas de esa fase en todos
+// los paneles. `showCapital` muestra la columna de capital agregado (solo Axi).
+function HistoryTable({
+  history,
+  activeLabel,
+  onSelect,
+  showCapital,
+}: {
+  history: AxiStageHistory[]
+  activeLabel: string | null
+  onSelect: (h: AxiStageHistory) => void
+  showCapital?: boolean
+}) {
+  return (
+    <div className="panel">
+      <div className="panel-head">
+        <span className="panel-title">Historial de fases completadas</span>
+      </div>
+      <p className="muted" style={{ fontSize: 12, margin: '0 0 8px' }}>
+        Haz clic en una fase para ver en todos los paneles sus estadísticas. Haz clic en la fase actual para volver.
+      </p>
+      <div className="table-wrap">
+        <table className="table">
+          <thead>
+            <tr>
+              <th>Fase</th>
+              <th>Fechas</th>
+              <th className="num">Balance final</th>
+              <th className="num">P&L</th>
+              <th className="num">Operaciones</th>
+              <th className="num">Win rate</th>
+              {showCapital ? <th className="num">Capital agreg.</th> : null}
+            </tr>
+          </thead>
+          <tbody>
+            {history.map((h) => {
+              const isSel = activeLabel === h.stageLabel
+              return (
+                <tr
+                  key={`${h.stageLabel}-${h.startDate}`}
+                  onClick={() => onSelect(h)}
+                  style={{ cursor: 'pointer', background: isSel ? 'var(--accent-soft)' : undefined }}
+                >
+                  <td><strong>{h.stageLabel}</strong></td>
+                  <td className="muted">
+                    {shortDate(h.startDate)} → {shortDate(h.endDate)}
+                  </td>
+                  <td className="num">{money(h.endBalance)}</td>
+                  <td className={`num ${h.netPnl >= 0 ? 'pos' : 'neg'}`}>{signedMoney(h.netPnl)}</td>
+                  <td className="num">{h.trades}</td>
+                  <td className="num">{h.winRate.toFixed(0)}%</td>
+                  {showCapital ? (
+                    <td className="num">
+                      {h.capitalAdded != null && h.capitalAdded > 0 ? money(h.capitalAdded) : '—'}
+                    </td>
+                  ) : null}
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

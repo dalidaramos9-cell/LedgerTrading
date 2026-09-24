@@ -78,9 +78,24 @@ export default function AccountForm({
       return
     }
     let finalRules = rules
-    // Para Axi Select, asegura la fecha de inicio de la fase actual (si falta).
-    if (type === 'axi' && rules.type === 'axi' && !rules.current_stage_start_date) {
-      finalRules = { ...rules, current_stage_start_date: new Date(startDate + 'T12:00:00').toISOString() }
+    // Para Axi Select y Fondeo Futuros, asegura la fecha de inicio de la fase
+    // actual (si falta), necesaria para el reset de estadísticas por fase.
+    if (
+      (type === 'axi' || type === 'futures') &&
+      (rules.type === 'axi' || rules.type === 'futures')
+    ) {
+      const missing: Record<string, unknown> = {}
+      if (!rules.current_stage_start_date) {
+        missing.current_stage_start_date = new Date(startDate + 'T12:00:00').toISOString()
+      }
+      // Balance de entrada de la fase: al crear/editar la cuenta arranca en el
+      // balance inicial (base desde la que se calcula el reset por fase).
+      if (rules.current_stage_balance == null) {
+        missing.current_stage_balance = bal
+      }
+      if (Object.keys(missing).length > 0) {
+        finalRules = { ...rules, ...missing } as typeof rules
+      }
     }
     const payload = {
       name: name.trim() || 'Mi cuenta',

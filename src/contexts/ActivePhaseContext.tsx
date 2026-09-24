@@ -31,16 +31,18 @@ export function ActivePhaseProvider({ children }: { children: ReactNode }) {
   }, [
     account?.id,
     account?.current_stage_index,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    account?.type === 'axi' && account.rules.type === 'axi'
-      ? account.rules.current_stage_start_date
+    // Axi Select y Fondeo Futuros definen fecha de inicio de fase: al cambiar
+    // (p. ej. al avanzar de fase) se vuelve a la vista de la fase actual.
+    account?.rules.type === 'axi' || account?.rules.type === 'futures'
+      ? account?.rules.current_stage_start_date
       : undefined,
   ])
 
-  // Rango de fechas de la fase actual.
+  // Rango de fechas de la fase actual. Aplica a los programas con reset por fase
+  // (Axi Select y Fondeo Futuros): la fase actual arranca en su fecha de inicio.
   function getCurrentRange(): { start: string; end: string } | null {
     if (!account) return null
-    if (account.type === 'axi' && account.rules.type === 'axi') {
+    if (account.rules.type === 'axi' || account.rules.type === 'futures') {
       const start = account.rules.current_stage_start_date ?? account.start_date
       return { start, end: new Date().toISOString() }
     }

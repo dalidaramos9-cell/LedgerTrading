@@ -135,6 +135,48 @@ export function analyzeAccount(
   account: Account,
   trades: Trade[],
   payouts: Payout[],
+  options?: { scope?: 'auto' | 'full' },
+): AccountAnalysis {
+  // Balance de la fase: al pasar de etapa/fase (Axi Select y Fondeo Futuros) el
+  // capital y las estadísticas se reinician. La nueva fase arranca desde el
+  // balance real de entrada (`current_stage_balance`) y solo cuenta los trades
+  // registrados DESPUÉS de su fecha de inicio, de modo que el capital, el P&L y
+  // las métricas de la fase arrancan en cero sin perder los trades anteriores
+  // (que quedan resumidos en `stage_history`).
+  //
+  // Al visualizar una fase PASADA (histórica) el reset no debe aplicarse: el
+  // llamador ya acotó los trades a esa fase y quiere ver sus datos guardados,
+  // no los de la fase actual. Para eso se pasa `scope: 'full'`.
+  const rules = account.rules
+  const scope = options?.scope ?? 'auto'
+  const resettable = rules.type === 'axi' || rules.type === 'futures' ? rules : null
+  const stageResetActive =
+    scope !== 'full' &&
+    resettable != null &&
+    resettable.current_stage_start_date != null &&
+    resettable.current_stage_balance != null &&
+    (account.current_stage_index ?? 0) > 0
+
+  const stageStartKey = stageResetActive
+    ? resettable!.current_stage_start_date!.slice(0, 10)
+    : ''
+  const effectiveTrades = stageResetActive
+    ? trades.filter((t) => t.date.slice(0, 10) >= stageStartKey)
+    : trades
+  // Base contable de la fase: al aplicar el reset el balance parte del capital
+  // real de entrada a la fase; en vista histórica se parte del balance con el
+  // que esa fase arrancó (guardado en `stage_history`).
+  const effectiveBase = stageResetActive
+    ? { ...account, initial_balance: resettable!.current_stage_balance! }
+    : account
+
+  return analyzeAccountCore(effectiveBase, effectiveTrades, payouts)
+}
+
+function analyzeAccountCore(
+  account: Account,
+  trades: Trade[],
+  payouts: Payout[],
 ): AccountAnalysis {
   const sorted = [...trades].sort((a, b) => a.date.localeCompare(b.date))
   const sortedPayouts = [...payouts].sort((a, b) => a.date.localeCompare(b.date))

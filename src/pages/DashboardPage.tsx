@@ -26,9 +26,12 @@ export default function DashboardPage() {
   const accountTrades = account ? trades.filter((t) => t.account_id === account.id) : []
   const accountPayouts = account ? payouts.filter((p) => p.account_id === account.id) : []
 
-  // Historial de fases de Axi (para el selector de fase en el Dashboard).
+  // Historial de fases completadas (Axi Select y Fondeo Futuros) para el selector
+  // de fase del Dashboard.
   const axiHistory: AxiStageHistory[] =
-    account?.type === 'axi' && account.rules.type === 'axi' ? account.rules.stage_history ?? [] : []
+    account?.rules.type === 'axi' || account?.rules.type === 'futures'
+      ? account.rules.stage_history ?? []
+      : []
 
   // Filtra los trades según la fase seleccionada (actual o una histórica).
   // Aquí el Dashboard decide el rango por su cuenta, sin depender del contexto,
@@ -52,14 +55,22 @@ export default function DashboardPage() {
     return accountTrades.filter((t) => t.date.slice(0, 10) >= start)
   }, [activePhase, accountTrades, account])
 
-  // Análisis de la fase seleccionada (filtrado por fecha).
-  const analysis = useMemo(
-    () =>
-      account
-        ? analyzeAccount(account, phaseTrades, accountPayouts)
-        : null,
-    [account, phaseTrades, accountPayouts],
-  )
+  // Análisis de la fase seleccionada (filtrado por fecha). En una fase PASADA se
+  // desactiva el reset por fase (`scope: 'full'`) y se parte del balance con el
+  // que esa fase arrancó (guardado en `stage_history`), para reproducir sus datos.
+  const analysis = useMemo(() => {
+    if (!account) return null
+    const viewingHistory = activePhase?.kind === 'history'
+    const histEntry =
+      viewingHistory && (account.rules.type === 'axi' || account.rules.type === 'futures')
+        ? (account.rules.stage_history ?? []).find((h) => h.stageLabel === activePhase.label) ?? null
+        : null
+    const baseAccount =
+      histEntry != null ? { ...account, initial_balance: histEntry.startBalance } : account
+    return analyzeAccount(baseAccount, phaseTrades, accountPayouts, {
+      scope: viewingHistory ? 'full' : 'auto',
+    })
+  }, [account, phaseTrades, accountPayouts, activePhase])
   // Análisis con TODOS los trades de la cuenta (sin filtrar por fase activa),
   // para que el "Balance actual" coincida con el panel "Capital de la cuenta"
   // de la pestaña Etapas (balance total: trades de todas las fases + capital
@@ -85,39 +96,35 @@ export default function DashboardPage() {
       ? account.rules.stage_capital_total ?? 0
       : 0
 
-  // La fase ACTUAL sí muestra el balance con el capital agregado (el dinero real
-  // con el que se opera ahora). Al visualizar una fase PASADA, se muestra solo
-  // capital inicial + rendimiento de esa fase (en su momento ese depósito no
-  // existía).
+  // La fase ACTUAL muestra el balance/capital con el que se opera ahora (que en
+  // programas con reset por fase —Axi Select y Fondeo Futuros— es el balance de
+  // entrada de la fase actual). Al visualizar una fase PASADA se muestran los
+  // datos guardados de esa fase.
   const isCurrentView = !activePhase || activePhase.kind === 'current'
 
   const s = analysis.stats
-  // Rentabilidad de la vista seleccionada. En la fase actual se mide sobre el
-  // capital con que se opera (inicial + depósito); en las fases pasadas sobre el
-  // capital inicial (rendimiento puro del trading de esa fase).
-  const rentBase = isCurrentView ? account.initial_balance + totalCapital : account.initial_balance
+  // El motor ya parte del capital de entrada de la fase actual cuando aplica el
+  // reset (`current_stage_balance`), y en vista histórica parte del balance con
+  // el que esa fase arrancó; por eso el balance mostrado es directamente el del
+  // análisis.
+  const balanceForView = s.currentBalance
+  // Base de rentabilidad de la vista seleccionada: el capital con el que arrancó
+  // la fase mostrada (balance de entrada del reset, o balance inicial de la fase
+  // histórica). Como el motor usa esa misma base, se toma del propio análisis
+  // para que el % y el balance sean coherentes.
+  const rentBase = isCurrentView
+    ? account.rules.type === 'axi' || account.rules.type === 'futures'
+      ? account.rules.current_stage_balance ?? account.initial_balance
+      : account.initial_balance + totalCapital
+    : account.initial_balance
   const rentabilidad = (s.totalPnl / Math.max(rentBase, 1)) * 100
-  // Balance actual de la FASE ACTUAL: parte del balance real de entrada a la fase
-  // (current_stage_balance, que ya incluye el capital final de la fase anterior +
-  // depósitos) y suma el P&L de la fase. Así coincide con el último punto de la
-  // curva de equity. s.currentBalance usa initial_balance como base; lo desplazamos.
-  const stageBaseAdjust =
-    isCurrentView && account.rules.type === 'axi' && account.rules.current_stage_balance != null
-      ? account.rules.current_stage_balance - account.initial_balance
-      : account.rules.type === 'axi'
-        ? totalCapital
-        : 0
-  const balanceForView = isCurrentView ? s.currentBalance + stageBaseAdjust : s.currentBalance
 
-  // Curva de equity de la fase seleccionada: se ancla de modo que su ÚLTIMO punto
-  // coincida con el balance actual mostrado (balanceForView). Esto garantiza que
-  // la curva termine exactamente en el balance actual, sin desajustes entre la
-  // curva y el hero del Dashboard.
-  const lastEquity = analysis.equity.length ? analysis.equity[analysis.equity.length - 1].balance : account.initial_balance
-  const offsetEquity = balanceForView - lastEquity
+  // Curva de equity de la fase seleccionada. El motor ya ancla la base al capital
+  // de entrada de la fase (reset) o al balance inicial de la fase histórica, así
+  // que el último punto coincide con `balanceForView` sin desplazamientos.
   const equityData = analysis.equity.map((p) => ({
     label: p.date.slice(5),
-    balance: p.balance + offsetEquity,
+    balance: p.balance,
   }))
 
   // ---- Desempeño de la Cuenta de Asignación (solo Axi Select) ----

@@ -44,6 +44,11 @@ export interface CfdRules {
   dailyLossPct: number
   maxDrawdownPct: number // estático en CFD
   profitSplit: number // %
+  // Campos de fase opcionales (reset de capital/estadísticas). CFD no los usa,
+  // pero se declaran para que el acceso por unión sea seguro en la UI.
+  current_stage_balance?: number
+  current_stage_start_date?: string
+  stage_history?: AxiStageHistory[]
 }
 
 export interface CfdPhase {
@@ -62,6 +67,17 @@ export interface FuturesRules {
   maxDrawdownPct: number // drawdown máximo (si trailing/EOD, es relativo)
   consistencyPct: number // regla de consistencia (máx % por día)
   profitSplit: number // %
+  // Balance de la cuenta al entrar a la fase actual (Evaluación → Colchón →
+  // Fondeo). Al avanzar de fase el balance se reinicia a este valor, de modo que
+  // el capital y las estadísticas de la nueva fase arrancan de cero sin perder
+  // los trades ya registrados (que se resumen en `stage_history`).
+  current_stage_balance?: number
+  // Fecha (ISO) en la que la cuenta entró a la fase actual. Permite filtrar los
+  // trades de la fase activa por fecha (reset de estadísticas por fase).
+  current_stage_start_date?: string
+  // Historial de fases completadas (para no perder los datos al reiniciar el
+  // conteo en cada cambio de fase).
+  stage_history?: FuturesStageHistory[]
 }
 
 export interface AxiStage {
@@ -80,21 +96,27 @@ export interface AxiStage {
   status: AxiStageStatus
 }
 
-// Resumen guardado de una etapa/fase completada de Axi Select, para no
-// perder los datos cuando pasas a la siguiente fase y se reinicia el conteo.
+// Resumen guardado de una etapa/fase completada (Axi Select o Fondeo Futuros),
+// para no perder los datos cuando pasas a la siguiente fase y se reinician
+// capital y estadísticas. `minEquity` y `capitalAdded` son propios de Axi y
+// quedan opcionales para que ambos programas compartan la misma estructura.
 export interface AxiStageHistory {
   stageLabel: string
-  minEquity: number
+  stageIndex?: number // 0 = primera fase; opcional por compatibilidad
+  minEquity?: number
   startBalance: number // balance al entrar (tras ajuste de capital)
   endBalance: number
   netPnl: number // ganancia de trading dentro de la fase (sin el capital agregado)
   trades: number
   winRate: number // 0-100
   profitFactor: number
-  capitalAdded: number // $ agregados al entrar a esta fase
+  capitalAdded?: number // $ agregados al entrar a esta fase (Axi Select)
   startDate: string // ISO
   endDate: string // ISO
 }
+
+// Fases de Fondeo Futuros comparten la misma estructura que las de Axi.
+export type FuturesStageHistory = AxiStageHistory
 
 export interface AxiRules {
   type: 'axi'
