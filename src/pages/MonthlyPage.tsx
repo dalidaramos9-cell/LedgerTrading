@@ -15,13 +15,16 @@ export default function MonthlyPage() {
 
   // La vista mensual usa TODOS los trades de la cuenta (sin filtrar por fase
   // activa), para que el profit de cada mes sea el acumulado de todas las fases
-  // y no se separe por etapa.
+  // y no se separe por etapa. Por eso se pide `scope: 'full'`: sin él el motor
+  // volvería a filtrar por la fecha de inicio de la fase actual y descartaría
+  // los trades de las fases anteriores, dejando la tabla vacía.
   const analysis = useMemo(() => {
     if (!account) return null
     return analyzeAccount(
       account,
       trades.filter((t) => t.account_id === account.id),
       payouts.filter((p) => p.account_id === account.id),
+      { scope: 'full' },
     )
   }, [account, trades, payouts])
 

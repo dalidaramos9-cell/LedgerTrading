@@ -23,8 +23,13 @@ export default function TradesPage() {
     )
   }, [trades, account, tradesForActive])
 
+  // Las estadísticas de la cabecera deben describir EXACTAMENTE la lista que se
+  // muestra debajo (`filtered`, ya acotada a la fase seleccionada). Se pide
+  // `scope: 'full'` para que el motor no vuelva a filtrar por la fecha de inicio
+  // de la fase actual: si lo hiciera, al revisar una fase anterior descartaría
+  // todos sus trades y la cabecera diría «0 operaciones» con la tabla llena.
   const analysis = useMemo(
-    () => (account ? analyzeAccount(account, filtered, []) : null),
+    () => (account ? analyzeAccount(account, filtered, [], { scope: 'full' }) : null),
     [account, filtered],
   )
 

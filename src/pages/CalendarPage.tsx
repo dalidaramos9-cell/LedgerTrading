@@ -28,14 +28,36 @@ export default function CalendarPage() {
   // El calendario refleja la fase activa seleccionada (actual o una histórica),
   // igual que el resto de paneles. Para registrar/ver operaciones de otra fase,
   // selecciona esa fase desde la pestaña Etapas.
+  //
+  // `tradesForActive` ya acota los trades a la fase mostrada, así que el motor NO
+  // debe volver a filtrarlos por la fecha de inicio de la fase ACTUAL: si lo
+  // hiciera, al revisar una fase anterior descartaría todos sus trades y el
+  // calendario saldría vacío aunque la fase tenga operaciones. Por eso:
+  //   - fase histórica: `scope: 'full'` y la base es el balance con el que esa
+  //     fase arrancó (`stage_history`), para reproducir sus datos.
+  //   - fase actual: `scope: 'auto'`, que aplica el reset por fase (capital de
+  //     entrada) — el filtro interno coincide con lo ya acotado, así que no
+  //     descarta nada.
+  const viewingHistory = activePhase?.kind === 'history'
+  const histEntry =
+    viewingHistory &&
+    (account?.rules.type === 'axi' ||
+      account?.rules.type === 'futures' ||
+      account?.rules.type === 'cfd')
+      ? (account.rules.stage_history ?? []).find((h) => h.stageLabel === activePhase.label) ?? null
+      : null
+
   const analysis = useMemo(() => {
     if (!account) return null
+    const baseAccount =
+      histEntry != null ? { ...account, initial_balance: histEntry.startBalance } : account
     return analyzeAccount(
-      account,
+      baseAccount,
       tradesForActive(trades.filter((t) => t.account_id === account.id)),
       payouts.filter((p) => p.account_id === account.id),
+      { scope: viewingHistory ? 'full' : 'auto' },
     )
-  }, [account, trades, payouts, tradesForActive])
+  }, [account, trades, payouts, tradesForActive, viewingHistory, histEntry])
 
   // Rango de meses con operaciones en la fase mostrada, para ofrecer un salto
   // directo: si el cursor quedó en un mes sin trades, el calendario parecería
