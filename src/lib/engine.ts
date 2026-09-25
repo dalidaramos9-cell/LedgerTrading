@@ -137,19 +137,20 @@ export function analyzeAccount(
   payouts: Payout[],
   options?: { scope?: 'auto' | 'full' },
 ): AccountAnalysis {
-  // Balance de la fase: al pasar de etapa/fase (Axi Select y Fondeo Futuros) el
-  // capital y las estadísticas se reinician. La nueva fase arranca desde el
-  // balance real de entrada (`current_stage_balance`) y solo cuenta los trades
-  // registrados DESPUÉS de su fecha de inicio, de modo que el capital, el P&L y
-  // las métricas de la fase arrancan en cero sin perder los trades anteriores
-  // (que quedan resumidos en `stage_history`).
+  // Balance de la fase: al pasar de etapa/fase (Axi Select, Fondeo Futuros y
+  // Fondeo CFD) el capital y las estadísticas se reinician. La nueva fase arranca
+  // desde el balance real de entrada (`current_stage_balance`) y solo cuenta los
+  // trades registrados DESPUÉS de su fecha de inicio, de modo que el capital, el
+  // P&L y las métricas de la fase arrancan en cero sin perder los trades
+  // anteriores (que quedan resumidos en `stage_history`).
   //
   // Al visualizar una fase PASADA (histórica) el reset no debe aplicarse: el
   // llamador ya acotó los trades a esa fase y quiere ver sus datos guardados,
   // no los de la fase actual. Para eso se pasa `scope: 'full'`.
   const rules = account.rules
   const scope = options?.scope ?? 'auto'
-  const resettable = rules.type === 'axi' || rules.type === 'futures' ? rules : null
+  const resettable =
+    rules.type === 'axi' || rules.type === 'futures' || rules.type === 'cfd' ? rules : null
   const stageResetActive =
     scope !== 'full' &&
     resettable != null &&
@@ -501,6 +502,13 @@ function computeStages(account: Account, totalPnl: number): StageProgress[] {
     const { phases } = account.rules
     // Secuencia: Fase 1 … Fase N → "Fondeada"
     const phaseCount = phases.length
+    // Igual que en Fondeo Futuros: `initial_balance` deja de ser el capital del
+    // programa al avanzar de fase (se repone al balance de entrada), así que el
+    // porcentaje de objetivo se calcula sobre el capital base del programa.
+    const programBase =
+      account.rules.program_base_balance ??
+      account.rules.current_stage_balance ??
+      account.initial_balance
     account.rules.phases.forEach((ph, i) => {
       const isCurrent = i === account.current_stage_index
       const target = ph.targetUSD
@@ -515,10 +523,14 @@ function computeStages(account: Account, totalPnl: number): StageProgress[] {
       stages.push({
         stageLabel: ph.label,
         stageIndex: i,
-        fromBalance: startPnl,
+        // Dentro de la fase el punto de partida es 0: el reset descarta los
+        // trades anteriores, así que el P&L de la fase empieza a contar desde
+        // cero (mostrar `startPnl` acumulado confundía con el balance final de
+        // la fase anterior).
+        fromBalance: 0,
         targetBalance: target,
         currentBalance: totalPnl,
-        targetPct: account.initial_balance > 0 ? (target / account.initial_balance) * 100 : 0,
+        targetPct: programBase > 0 ? (target / programBase) * 100 : 0,
         progressPct,
         needsAdvance: isCurrent && target > 0 && stageNet >= target - 0.001,
         // La fase activa nunca puede figurar como completada.
@@ -530,7 +542,7 @@ function computeStages(account: Account, totalPnl: number): StageProgress[] {
     stages.push({
       stageLabel: 'Fondeada',
       stageIndex: phaseCount,
-      fromBalance: startPnl,
+      fromBalance: 0,
       targetBalance: 0,
       currentBalance: totalPnl,
       targetPct: 0,

@@ -64,13 +64,19 @@ export function useStageAutoAdvance(account: Account | null, analysis: AccountAn
     const endIso = new Date(endDateStr + 'T12:00:00').toISOString()
     const nextStartIso = new Date(nextStartDateStr + 'T12:00:00').toISOString()
 
-    // Programas con reset de capital/estadísticas por fase: Axi Select y Fondeo
-    // Futuros. En ellos el motor ya cuenta solo los trades desde la fecha de
-    // inicio de la fase, así que el P&L de la fase arranca en 0 igual que su
-    // punto de partida (`stage_start_pnl`). En CFD (sin reset) el P&L sigue
-    // siendo acumulado y el punto de partida se desplaza al acumulado actual.
+    // Programas con reset de capital/estadísticas por fase: Axi Select, Fondeo
+    // Futuros y Fondeo CFD. En ellos el motor ya cuenta solo los trades desde la
+    // fecha de inicio de la fase, así que el P&L de la fase arranca en 0 igual
+    // que su punto de partida (`stage_start_pnl`).
+    //
+    // Fondeo CFD se sumó a este grupo porque sus fases (Fase 1 → Fase 2 →
+    // Fondeada) tienen objetivos en $ igual que Futuros: sin el reset, la Fase 2
+    // arrancaba con el balance y las estadísticas acumuladas de la Fase 1
+    // (mostraba su balance final en lugar de 0 de progreso).
     const hasPhaseReset =
-      account.rules.type === 'axi' || account.rules.type === 'futures'
+      account.rules.type === 'axi' ||
+      account.rules.type === 'futures' ||
+      account.rules.type === 'cfd'
     let updated: Account = {
       ...account,
       current_stage_index: nextIndex,
@@ -81,25 +87,23 @@ export function useStageAutoAdvance(account: Account | null, analysis: AccountAn
     // se reinician los puntos de partida para que la nueva fase arranque en cero.
     //
     // `phasePnl` debe ser el P&L DE LA FASE QUE SE CIERRA, no el de toda la
-    // cuenta. Con reset por fase (`hasPhaseReset`) el motor ya filtra por fecha,
-    // pero cuando la fase se cierra con datos antiguos o el historial aún no
-    // refleja el P&L consumido, `analysis.stats.totalPnl` puede incluir fases
-    // anteriores. Se descuenta lo ya archivado en `stage_history` para que:
-    //   1. el `netPnl` guardado corresponda solo a la fase cerrada, y
-    //   2. la fase SIGUIENTE arranque con 0 de P&L y no dispare un segundo
-    //      avance automático (era la causa de saltar Evaluación → Colchón →
-    //      Fondeo sin pararse en Colchón).
-    const alreadyArchived = (account.rules.stage_history ?? []).reduce(
-      (s, h) => s + (h.netPnl ?? 0),
-      0,
-    )
+    // cuenta. En los programas con reset por fase (Axi Select, Fondeo Futuros y
+    // Fondeo CFD) el motor YA filtra por fecha de inicio de la fase, así que
+    // `analysis.stats.totalPnl` es exactamente el P&L de la fase: no hay que
+    // descontar nada. Restar lo archivado aquí era un error que dejaba el P&L de
+    // la fase en negativo y obligaba a completar de nuevo los objetivos ya
+    // cumplidos (la Fase 2 parecía retroceder a ~0).
+    //
+    // Sin reset por fase (cuentas de capital propio) el P&L de la etapa se mide
+    // desde su punto de partida (`stage_start_pnl`).
     const phasePnl = hasPhaseReset
-      ? analysis.stats.totalPnl - alreadyArchived
+      ? analysis.stats.totalPnl
       : analysis.stats.totalPnl - (account.stage_start_pnl ?? 0)
     const stageNet = Math.round(phasePnl * 100) / 100
-    const stageStartDate = account.rules.type === 'axi' || account.rules.type === 'futures'
-      ? account.rules.current_stage_start_date ?? account.start_date
-      : account.start_date
+    const stageStartDate =
+      account.rules.type === 'axi' || account.rules.type === 'futures' || account.rules.type === 'cfd'
+        ? account.rules.current_stage_start_date ?? account.start_date
+        : account.start_date
     if (account.rules.type === 'axi') {
       const stages = account.rules.stages.map((st, i) => {
         if (i < nextIndex) return { ...st, status: 'completed' as const }
@@ -170,6 +174,46 @@ export function useStageAutoAdvance(account: Account | null, analysis: AccountAn
           // reponer (el de la fase que se cierra), que es el capital original del
           // programa. Los porcentajes de objetivo se calculan sobre él, así que
           // no debe seguir al balance de entrada de cada fase.
+          program_base_balance: account.rules.program_base_balance ?? account.initial_balance,
+        },
+      }
+    } else if (account.rules.type === 'cfd') {
+      // Fondeo CFD: las fases (Fase 1 → Fase 2 → Fondeada) tienen objetivo en $
+      // igual que Fondeo Futuros, así que al cerrar una fase también se archiva
+      // su resumen y la siguiente arranca con capital y estadísticas en cero.
+      // Sin esto, la Fase 2 heredaba el balance y las estadísticas de la Fase 1.
+      // La fecha de inicio de la nueva fase es la que filtra el motor: los
+      // trades de la fase cerrada dejan de contar en la fase activa (quedan
+      // resumidos en el historial, no se pierden).
+      const history = [
+        ...(account.rules.stage_history ?? []),
+        {
+          stageLabel: pendingAdvance.stageLabel,
+          stageIndex: pendingAdvance.nextIndex - 1,
+          startBalance: Math.round(account.rules.current_stage_balance ?? account.initial_balance),
+          endBalance: Math.round(analysis.stats.currentBalance),
+          netPnl: stageNet,
+          trades: analysis.stats.totalTrades,
+          winRate: analysis.stats.winRate,
+          profitFactor: analysis.stats.profitFactor,
+          startDate: stageStartDate,
+          endDate: endIso,
+        },
+      ]
+      updated = {
+        ...updated,
+        status: 'funded',
+        rules: {
+          ...account.rules,
+          stage_history: history,
+          current_stage_start_date: nextStartIso,
+          // La nueva fase arranca con el capital inicial del programa (la cuenta
+          // se "repone"); el resultado de la fase cerrada queda archivado.
+          current_stage_balance: account.initial_balance,
+          // Capital base del programa: se sella con el valor vigente ANTES de
+          // reponer, para que los porcentajes de objetivo no cambien de fase en
+          // fase (los objetivos de CFD vienen en $, pero `targetPct` se muestra
+          // en la UI sobre esta base).
           program_base_balance: account.rules.program_base_balance ?? account.initial_balance,
         },
       }

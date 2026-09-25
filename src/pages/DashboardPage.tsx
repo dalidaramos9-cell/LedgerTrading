@@ -26,10 +26,12 @@ export default function DashboardPage() {
   const accountTrades = account ? trades.filter((t) => t.account_id === account.id) : []
   const accountPayouts = account ? payouts.filter((p) => p.account_id === account.id) : []
 
-  // Historial de fases completadas (Axi Select y Fondeo Futuros) para el selector
-  // de fase del Dashboard.
+  // Historial de fases completadas (Axi Select, Fondeo Futuros y Fondeo CFD) para
+  // el selector de fase del Dashboard.
   const axiHistory: AxiStageHistory[] =
-    account?.rules.type === 'axi' || account?.rules.type === 'futures'
+    account?.rules.type === 'axi' ||
+    account?.rules.type === 'futures' ||
+    account?.rules.type === 'cfd'
       ? account.rules.stage_history ?? []
       : []
 
@@ -46,11 +48,11 @@ export default function DashboardPage() {
       })
     }
     // Fase actual (activePhase null o 'current'): rango desde el inicio de la
-    // fase actual en adelante.
-    const start =
-      account?.type === 'axi' && account.rules.type === 'axi'
-        ? (account.rules.current_stage_start_date ?? account.start_date).slice(0, 10)
-        : account?.start_date.slice(0, 10)
+    // fase actual en adelante (Axi Select, Fondeo Futuros y Fondeo CFD guardan
+    // esa fecha al avanzar de fase).
+    const start = account?.rules.current_stage_start_date
+      ? account.rules.current_stage_start_date.slice(0, 10)
+      : account?.start_date.slice(0, 10)
     if (!start) return accountTrades
     return accountTrades.filter((t) => t.date.slice(0, 10) >= start)
   }, [activePhase, accountTrades, account])
@@ -62,7 +64,10 @@ export default function DashboardPage() {
     if (!account) return null
     const viewingHistory = activePhase?.kind === 'history'
     const histEntry =
-      viewingHistory && (account.rules.type === 'axi' || account.rules.type === 'futures')
+      viewingHistory &&
+      (account.rules.type === 'axi' ||
+        account.rules.type === 'futures' ||
+        account.rules.type === 'cfd')
         ? (account.rules.stage_history ?? []).find((h) => h.stageLabel === activePhase.label) ?? null
         : null
     const baseAccount =
@@ -113,7 +118,9 @@ export default function DashboardPage() {
   // histórica). Como el motor usa esa misma base, se toma del propio análisis
   // para que el % y el balance sean coherentes.
   const rentBase = isCurrentView
-    ? account.rules.type === 'axi' || account.rules.type === 'futures'
+    ? account.rules.type === 'axi' ||
+      account.rules.type === 'futures' ||
+      account.rules.type === 'cfd'
       ? account.rules.current_stage_balance ?? account.initial_balance
       : account.initial_balance + totalCapital
     : account.initial_balance
@@ -226,7 +233,10 @@ export default function DashboardPage() {
   const currentLabel =
     account.rules.type === 'axi'
       ? (account.rules.stages[account.current_stage_index]?.label ?? 'Fase actual')
-      : 'Vista general'
+      : account.rules.type === 'cfd'
+        ? (account.rules.phases[account.current_stage_index]?.label ??
+          (account.current_stage_index >= account.rules.phases.length ? 'Fondeada' : 'Fase actual'))
+        : 'Vista general'
   const phaseOptions: { key: string; label: string }[] = [
     { key: '__current__', label: `Fase actual (${currentLabel})` },
     ...[...axiHistory].reverse().map((h) => ({ key: h.stageLabel, label: h.stageLabel })),

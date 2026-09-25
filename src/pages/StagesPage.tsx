@@ -35,7 +35,10 @@ export default function StagesPage() {
     if (!account) return null
     const viewingHistory = activePhase?.kind === 'history'
     const histEntry =
-      viewingHistory && (account.rules.type === 'axi' || account.rules.type === 'futures')
+      viewingHistory &&
+      (account.rules.type === 'axi' ||
+        account.rules.type === 'futures' ||
+        account.rules.type === 'cfd')
         ? (account.rules.stage_history ?? []).find((h) => h.stageLabel === activePhase.label) ?? null
         : null
     const baseAccount =
@@ -85,28 +88,34 @@ export default function StagesPage() {
     account.type === 'axi' && account.rules.type === 'axi'
       ? account.rules.stage_capital_total ?? 0
       : 0
-  // Historial de fases completadas (Axi Select y Fondeo Futuros).
+  // Historial de fases completadas (Axi Select, Fondeo Futuros y Fondeo CFD).
   const stageHistory =
-    account.rules.type === 'axi' || account.rules.type === 'futures'
+    account.rules.type === 'axi' ||
+    account.rules.type === 'futures' ||
+    account.rules.type === 'cfd'
       ? account.rules.stage_history ?? []
       : []
   const isAxiAccount = account.type === 'axi' && account.rules.type === 'axi'
   const isFuturesAccount = account.rules.type === 'futures'
+  // Fondeo CFD: sus fases (Fase 1 → Fase 2 → Fondeada) también reinician capital
+  // y estadísticas al avanzar, así que comparten la UI de corrección y el
+  // historial de fases con Fondeo Futuros.
+  const isCfdAccount = account.rules.type === 'cfd'
+  const hasPhaseReset = isAxiAccount || isFuturesAccount || isCfdAccount
   // Con el reset por fase, las estadísticas de la fase actual ya vienen
   // normalizadas (solo la fase activa + balance de entrada de la fase).
   const currentStats = phaseAnalysis ?? analysis
-  const currentBetaLabel = isFuturesAccount
+  const currentBetaLabel = isFuturesAccount || isCfdAccount
     ? 'Balance de la fase'
     : 'Balance actual'
-  const currentBetaValue = isFuturesAccount
+  const currentBetaValue = isFuturesAccount || isCfdAccount
     ? currentStats.stats.currentBalance
     : balanceNow + axiCapital
   // Fecha de inicio de la fase actual (para mostrarla y permitir editarla).
-  const phaseStartDate =
-    account.rules.type !== 'cfd' && account.rules.current_stage_start_date
-      ? isoDate(new Date(account.rules.current_stage_start_date))
-      : isoDate(new Date(account.start_date))
-  const canEditStartDate = isAxiAccount || isFuturesAccount
+  const phaseStartDate = account.rules.current_stage_start_date
+    ? isoDate(new Date(account.rules.current_stage_start_date))
+    : isoDate(new Date(account.start_date))
+  const canEditStartDate = hasPhaseReset
 
   // ¿Hay datos de la fase que estén mal y se puedan corregir? Se comprueba si el
   // balance de entrada difiere del capital inicial (avance con el balance final)
@@ -114,7 +123,13 @@ export default function StagesPage() {
   // realidad pertenecen a una fase previa. En ambos casos se ofrece la corrección.
   const phaseNeedsFix = (() => {
     if (!account || !canEditStartDate) return false
-    if (account.rules.type !== 'axi' && account.rules.type !== 'futures') return false
+    if (
+      account.rules.type !== 'axi' &&
+      account.rules.type !== 'futures' &&
+      account.rules.type !== 'cfd'
+    ) {
+      return false
+    }
     if ((account.rules.current_stage_balance ?? account.initial_balance) !== account.initial_balance) {
       return true
     }
@@ -134,11 +149,14 @@ export default function StagesPage() {
     // Doble avance: hay una fase archivada heredando el P&L de la anterior, así
     // que la cuenta quedó en una fase que nunca se completó y debe retroceder.
     if (correctedStageIndex(account) < account.current_stage_index) return true
-    // Refuerzo independiente del historial: en Fondeo Futuros, la fase activa no
-    // puede haber "avanzado" si su P&L de fase es 0 Y existe alguna fase previa
-    // sin archivar con netPnl > 0. Es el rastro de haber saltado una fase sin
+    // Refuerzo independiente del historial: en Fondeo Futuros y Fondeo CFD, la
+    // fase activa no puede haber "avanzado" si su P&L de fase es 0 Y existe
+    // alguna fase previa sin archivar. Es el rastro de haber saltado una fase sin
     // operarla (el detector de arriba falla si el historial no guarda netPnl).
-    if (account.rules.type === 'futures' && account.current_stage_index >= 1) {
+    if (
+      (account.rules.type === 'futures' || account.rules.type === 'cfd') &&
+      account.current_stage_index >= 1
+    ) {
       const hist = account.rules.stage_history ?? []
       const missingPrev = (() => {
         for (let i = 0; i < account.current_stage_index; i++) {
@@ -199,7 +217,9 @@ export default function StagesPage() {
   // hubiera operado y completado. Devuelve el índice de la PRIMERA fase
   // sospechosa, o -1 si todas son legítimas.
   function firstSuspiciousHistoryIndex(acc: Account): number {
-    const hist = (acc.rules.type === 'axi' || acc.rules.type === 'futures'
+    const hist = (acc.rules.type === 'axi' ||
+    acc.rules.type === 'futures' ||
+    acc.rules.type === 'cfd'
       ? acc.rules.stage_history
       : []) ?? []
     const ordered = hist
@@ -234,7 +254,13 @@ export default function StagesPage() {
   // balance final de la fase anterior en lugar del capital inicial).
   async function restorePhaseCapital() {
     if (!account) return
-    if (account.rules.type !== 'axi' && account.rules.type !== 'futures') return
+    if (
+      account.rules.type !== 'axi' &&
+      account.rules.type !== 'futures' &&
+      account.rules.type !== 'cfd'
+    ) {
+      return
+    }
     const updated = {
       ...account,
       rules: {
@@ -260,7 +286,13 @@ export default function StagesPage() {
   // de etapas marcara como completadas fases que seguían activas).
   async function fixPhaseData() {
     if (!account) return
-    if (account.rules.type !== 'axi' && account.rules.type !== 'futures') return
+    if (
+      account.rules.type !== 'axi' &&
+      account.rules.type !== 'futures' &&
+      account.rules.type !== 'cfd'
+    ) {
+      return
+    }
     // Índice corregido: si el historial delata un doble avance (una fase se
     // archivó heredando el P&L de la anterior), la cuenta debe VOLVER a esa fase
     // en lugar de quedarse en una posterior que nunca se completó.
@@ -372,7 +404,14 @@ export default function StagesPage() {
             : idx === 1
               ? ('cushion' as const)
               : ('evaluation' as const)
-          : account.status,
+          : // Fondeo CFD: las fases son intermedias y la etapa terminal es
+            // "Fondeada", así que mientras no se superen todas queda en
+            // evaluación; al superarlas la cuenta pasa a fondeada.
+            account.rules.type === 'cfd'
+            ? idx >= account.rules.phases.length
+              ? ('funded' as const)
+              : ('evaluation' as const)
+            : account.status,
       stage_start_pnl: 0,
       rules: {
         ...account.rules,
@@ -394,10 +433,17 @@ export default function StagesPage() {
 
   // Guarda la fecha de inicio manual de la fase actual (para poder registrar
   // operaciones del pasado si la cuenta ya venía en una etapa avanzada).
-  // Aplica a Axi Select y Fondeo Futuros (programas con reset por fase).
+  // Aplica a los programas con reset por fase (Axi Select, Fondeo Futuros y
+  // Fondeo CFD).
   async function setPhaseStartDate(newDate: string) {
     if (!account || !newDate) return
-    if (account.rules.type !== 'axi' && account.rules.type !== 'futures') return
+    if (
+      account.rules.type !== 'axi' &&
+      account.rules.type !== 'futures' &&
+      account.rules.type !== 'cfd'
+    ) {
+      return
+    }
     const updated = {
       ...account,
       rules: {
@@ -537,31 +583,29 @@ export default function StagesPage() {
         )}
       </div>
 
-      {isFuturesAccount ? (
+      {hasPhaseReset || isFuturesAccount || isCfdAccount ? (
         <div className="panel">
           <div className="panel-head">
-            <span className="panel-title">Capital de la fase (Fondeo Futuros)</span>
+            <span className="panel-title">
+              {isCfdAccount ? 'Capital de la fase (Fondeo CFD)' : 'Capital de la fase (Fondeo Futuros)'}
+            </span>
           </div>
           <p className="muted" style={{ fontSize: 12, margin: '0 0 8px' }}>
-            Al pasar de fase (Evaluación → Colchón → Fondeo) el capital y las estadísticas se reinician:
-            la nueva fase arranca en el balance de entrada y solo cuenta los trades de esa fase. Los
-            trades anteriores se conservan en el historial.
+            {isCfdAccount
+              ? 'Al pasar de fase (Fase 1 → Fase 2 → Fondeada) el capital y las estadísticas se reinician: la nueva fase arranca en el balance de entrada y solo cuenta los trades de esa fase. Los trades anteriores se conservan en el historial.'
+              : 'Al pasar de fase (Evaluación → Colchón → Fondeo) el capital y las estadísticas se reinician: la nueva fase arranca en el balance de entrada y solo cuenta los trades de esa fase. Los trades anteriores se conservan en el historial.'}
           </p>
           <div className="stage-stat-row">
             <span>Balance de entrada de la fase</span>
             <strong style={{ color: 'var(--text-muted)' }}>
-              {money(
-                (isFuturesAccount
-                  ? account.rules.current_stage_balance
-                  : undefined) ?? account.initial_balance,
-              )}
+              {money(account.rules.current_stage_balance ?? account.initial_balance)}
             </strong>
           </div>
           <div className="stage-stat-row" style={{ marginTop: 6 }}>
             <span>Balance de la fase (entrada + P&L)</span>
             <strong>{money(analysis.stats.currentBalance)}</strong>
           </div>
-          {isFuturesAccount && account.current_stage_index > 0 && phaseNeedsFix ? (
+          {hasPhaseReset && account.current_stage_index > 0 && phaseNeedsFix ? (
             <div style={{ marginTop: 10 }}>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {(account.rules.current_stage_balance ?? account.initial_balance) !==
@@ -580,9 +624,13 @@ export default function StagesPage() {
               </div>
               <p className="muted" style={{ fontSize: 12, margin: '8px 0 0' }}>
                 {correctedStageIndex(account) < account.current_stage_index
-                  ? `Se detectó un avance de fase de más: quedaste en Fondeo sin haber completado Colchón. La corrección te devuelve a ${
+                  ? `Se detectó un avance de fase de más: la cuenta quedó en «${
+                      analysis.stages[account.current_stage_index]?.stageLabel ?? 'una fase posterior'
+                    }» sin haber completado «${
                       analysis.stages[correctedStageIndex(account)]?.stageLabel ?? 'la fase anterior'
-                    } con 0 de progreso.`
+                    }». La corrección te devuelve a «${
+                      analysis.stages[correctedStageIndex(account)]?.stageLabel ?? 'la fase anterior'
+                    }» con 0 de progreso.`
                   : 'Se detectaron datos de la fase que no cuadran (balance de entrada, operaciones de fases anteriores o historial). Usa la corrección para ajustarlos.'}
               </p>
             </div>
@@ -676,7 +724,7 @@ export default function StagesPage() {
         </>
       ) : null}
 
-      {isFuturesAccount && stageHistory.length > 0 ? (
+      {(isFuturesAccount || isCfdAccount) && stageHistory.length > 0 ? (
         <HistoryTable
           history={stageHistory}
           activeLabel={activePhase?.kind === 'history' ? activePhase.label : null}

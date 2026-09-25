@@ -78,11 +78,11 @@ export default function AccountForm({
       return
     }
     let finalRules = rules
-    // Para Axi Select y Fondeo Futuros, asegura la fecha de inicio de la fase
-    // actual (si falta), necesaria para el reset de estadísticas por fase.
+    // Para Axi Select, Fondeo Futuros y Fondeo CFD, asegura la fecha de inicio de
+    // la fase actual (si falta), necesaria para el reset de estadísticas por fase.
     if (
-      (type === 'axi' || type === 'futures') &&
-      (rules.type === 'axi' || rules.type === 'futures')
+      (type === 'axi' || type === 'futures' || type === 'cfd') &&
+      (rules.type === 'axi' || rules.type === 'futures' || rules.type === 'cfd')
     ) {
       const missing: Record<string, unknown> = {}
       if (!rules.current_stage_start_date) {

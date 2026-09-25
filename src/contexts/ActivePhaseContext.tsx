@@ -31,19 +31,29 @@ export function ActivePhaseProvider({ children }: { children: ReactNode }) {
   }, [
     account?.id,
     account?.current_stage_index,
-    // Axi Select y Fondeo Futuros definen fecha de inicio de fase: al cambiar
-    // (p. ej. al avanzar de fase) se vuelve a la vista de la fase actual.
-    account?.rules.type === 'axi' || account?.rules.type === 'futures'
+    // Axi Select, Fondeo Futuros y Fondeo CFD definen fecha de inicio de fase: al
+    // cambiar (p. ej. al avanzar de fase) se vuelve a la vista de la fase actual.
+    account?.rules.type === 'axi' ||
+    account?.rules.type === 'futures' ||
+    account?.rules.type === 'cfd'
       ? account?.rules.current_stage_start_date
       : undefined,
   ])
 
   // Rango de fechas de la fase actual. Aplica a los programas con reset por fase
-  // (Axi Select y Fondeo Futuros): la fase actual arranca en su fecha de inicio.
+  // (Axi Select, Fondeo Futuros y Fondeo CFD): la fase actual arranca en su fecha
+  // de inicio.
   function getCurrentRange(): { start: string; end: string } | null {
     if (!account) return null
-    if (account.rules.type === 'axi' || account.rules.type === 'futures') {
-      const start = account.rules.current_stage_start_date ?? account.start_date
+    if (
+      account.rules.type === 'axi' ||
+      account.rules.type === 'futures' ||
+      account.rules.type === 'cfd'
+    ) {
+      const start = account.rules.current_stage_start_date
+      // Si la cuenta aún no tiene fecha de fase (nunca avanzó), no se acota nada:
+      // toda la vida de la cuenta pertenece a la fase actual.
+      if (!start) return null
       return { start, end: new Date().toISOString() }
     }
     return null

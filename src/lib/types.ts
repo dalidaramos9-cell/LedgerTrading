@@ -44,11 +44,17 @@ export interface CfdRules {
   dailyLossPct: number
   maxDrawdownPct: number // estático en CFD
   profitSplit: number // %
-  // Campos de fase opcionales (reset de capital/estadísticas). CFD no los usa,
-  // pero se declaran para que el acceso por unión sea seguro en la UI.
+  // Campos de fase opcionales (reset de capital/estadísticas). Fondeo CFD los usa
+  // igual que Fondeo Futuros: al completar una fase (Fase 1 → Fase 2 → Fondeada)
+  // el capital y las estadísticas se reinician.
   current_stage_balance?: number
   current_stage_start_date?: string
   stage_history?: AxiStageHistory[]
+  // Capital base del programa (el que tenía la cuenta al ENTRAR en Fase 1).
+  // `initial_balance` se repone al balance de entrada de cada fase al avanzar,
+  // así que los porcentajes de objetivo se calculan sobre este valor para que no
+  // cambien de fase en fase.
+  program_base_balance?: number
 }
 
 export interface CfdPhase {
