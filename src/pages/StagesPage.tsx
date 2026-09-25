@@ -151,6 +151,58 @@ export default function StagesPage() {
     }
   }
 
+  // Corrección completa de la fase activa: repone el capital de entrada al
+  // capital inicial y reajusta la fecha de inicio de la fase para que quede
+  // DESPUÉS del último trade de la fase anterior. Sin esto, reponer el balance
+  // no basta: los trades registrados antes del avance pero con fecha posterior
+  // al inicio de la fase seguirían contando en las estadísticas de la fase nueva.
+  async function fixPhaseData() {
+    if (!account) return
+    if (account.rules.type !== 'axi' && account.rules.type !== 'futures') return
+    // Fases ya completadas (el historial guarda hasta dónde llegó cada una).
+    const history = account.rules.stage_history ?? []
+    const lastEnd = history.reduce<string | null>(
+      (acc, h) => (h.endDate && (acc == null || h.endDate > acc) ? h.endDate : acc),
+      null,
+    )
+    // Trades de la cuenta ordenados por fecha (los anteriores al inicio actual
+    // pertenecen a fases ya archivadas).
+    const accountTrades = trades
+      .filter((t) => t.account_id === account.id)
+      .sort((a, b) => a.date.localeCompare(b.date))
+    const currentStartKey = (account.rules.current_stage_start_date ?? account.start_date).slice(0, 10)
+    // Trades con fecha ANTERIOR al inicio de la fase actual: pertenecen a las
+    // fases previas y deben quedar excluidos (no se borran, se conservan).
+    const beforePhase = accountTrades.filter((t) => t.date.slice(0, 10) < currentStartKey)
+    const lastBefore = beforePhase.length > 0 ? beforePhase[beforePhase.length - 1].date : null
+    // Nueva fecha de inicio: el día siguiente al último trade previo a la fase.
+    // Si no hay trades previos, se conserva la fecha actual.
+    let nextStart = account.rules.current_stage_start_date ?? account.start_date
+    if (lastBefore) {
+      const d = new Date(lastBefore.slice(0, 10) + 'T12:00:00')
+      d.setDate(d.getDate() + 1)
+      nextStart = d.toISOString()
+    } else if (lastEnd) {
+      const d = new Date(lastEnd.slice(0, 10) + 'T12:00:00')
+      d.setDate(d.getDate() + 1)
+      if (d.toISOString() > nextStart) nextStart = d.toISOString()
+    }
+    const updated = {
+      ...account,
+      stage_start_pnl: 0,
+      rules: {
+        ...account.rules,
+        current_stage_balance: account.initial_balance,
+        current_stage_start_date: nextStart,
+      },
+    }
+    try {
+      await updateAccount(updated)
+    } catch {
+      /* ignorar */
+    }
+  }
+
   // Guarda la fecha de inicio manual de la fase actual (para poder registrar
   // operaciones del pasado si la cuenta ya venía en una etapa avanzada).
   // Aplica a Axi Select y Fondeo Futuros (programas con reset por fase).
@@ -313,9 +365,12 @@ export default function StagesPage() {
           {isFuturesAccount &&
           (account.rules.current_stage_balance ?? account.initial_balance) !==
             account.initial_balance ? (
-            <div style={{ marginTop: 10 }}>
+            <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <Button variant="subtle" onClick={restorePhaseCapital}>
                 Reponer al capital inicial ({money(account.initial_balance)})
+              </Button>
+              <Button variant="subtle" onClick={fixPhaseData}>
+                Corregir fase (balance + excluir trades anteriores)
               </Button>
             </div>
           ) : null}
@@ -374,9 +429,14 @@ export default function StagesPage() {
               </Button>
               {(account.rules.current_stage_balance ?? account.initial_balance) !==
               account.initial_balance ? (
-                <Button variant="subtle" sm onClick={restorePhaseCapital}>
-                  Reponer al capital inicial ({money(account.initial_balance)})
-                </Button>
+                <>
+                  <Button variant="subtle" sm onClick={restorePhaseCapital}>
+                    Reponer al capital inicial ({money(account.initial_balance)})
+                  </Button>
+                  <Button variant="subtle" sm onClick={fixPhaseData}>
+                    Corregir fase (balance + excluir trades anteriores)
+                  </Button>
+                </>
               ) : null}
               {suggestedCapital > 0 ? (
                 <span className="muted" style={{ fontSize: 13 }}>
