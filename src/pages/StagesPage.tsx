@@ -377,7 +377,13 @@ export default function StagesPage() {
                     />
                     <div className="stage-stat-row">
                       <span>{montoStage(account, stage, analysis.stats.totalPnl)}</span>
-                      <span>Objetivo {stage.targetBalance > 0 ? money(stage.targetBalance) : '—'}</span>
+                      <span>
+                        {stage.targetBalance > 0
+                          ? `Objetivo ${money(stage.targetBalance)}`
+                          : stage.stageLabel === 'Fondeo' && stage.stageIndex === account.current_stage_index
+                            ? 'Cuenta fondeada'
+                            : '—'}
+                      </span>
                     </div>
                     {stageDetail(account, stage) ? (
                       <div className="stage-stat-row">
@@ -423,7 +429,7 @@ export default function StagesPage() {
             <span>Balance de la fase (entrada + P&L)</span>
             <strong>{money(analysis.stats.currentBalance)}</strong>
           </div>
-          {isFuturesAccount && account.current_stage_index > 0 ? (
+          {isFuturesAccount && account.current_stage_index > 0 && phaseNeedsFix ? (
             <div style={{ marginTop: 10 }}>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {(account.rules.current_stage_balance ?? account.initial_balance) !==
@@ -436,12 +442,10 @@ export default function StagesPage() {
                   Corregir fase (balance + excluir operaciones anteriores)
                 </Button>
               </div>
-              {!phaseNeedsFix ? (
-                <p className="muted" style={{ fontSize: 12, margin: '8px 0 0' }}>
-                  ✓ Los datos de esta fase están correctos. Usa «Corregir fase» solo si el balance o
-                  las operaciones no coinciden con lo que esperas.
-                </p>
-              ) : null}
+              <p className="muted" style={{ fontSize: 12, margin: '8px 0 0' }}>
+                Se detectaron datos de la fase que no cuadran (balance de entrada, operaciones de
+                fases anteriores o historial). Usa la corrección para ajustarlos.
+              </p>
             </div>
           ) : null}
           {canEditStartDate ? (
@@ -497,7 +501,7 @@ export default function StagesPage() {
               <Button variant="primary" sm onClick={() => setCapitalOpen(true)}>
                 + Agregar capital
               </Button>
-              {account.current_stage_index > 0 ? (
+              {account.current_stage_index > 0 && phaseNeedsFix ? (
                 <>
                   {(account.rules.current_stage_balance ?? account.initial_balance) !==
                   account.initial_balance ? (

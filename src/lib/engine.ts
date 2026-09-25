@@ -544,15 +544,18 @@ function computeStages(account: Account, totalPnl: number): StageProgress[] {
       futuresStageProgress(account, 'Evaluación', 0, r.evaluationTarget, totalPnl, startPnl, stageNet),
       futuresStageProgress(account, 'Colchón', 1, r.cushionTarget, totalPnl, startPnl, stageNet),
       {
+        // Fondeo es la fase TERMINAL: no tiene objetivo de profit propio (la
+        // cuenta ya está fondeada), así que su barra no debe pintarse al 100%
+        // como si estuviera "completada" — eso confundía al ver la fase activa.
         stageLabel: 'Fondeo',
         stageIndex: 2,
         fromBalance: startPnl,
         targetBalance: 0,
         currentBalance: totalPnl,
         targetPct: 0,
-        progressPct: account.current_stage_index >= 2 ? 100 : 0,
+        progressPct: 0,
         needsAdvance: false,
-        isComplete: account.current_stage_index > 2,
+        isComplete: false,
       },
     )
   } else if (account.type === 'axi' && account.rules.type === 'axi') {
