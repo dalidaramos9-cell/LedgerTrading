@@ -133,7 +133,24 @@ export default function StagesPage() {
     if (phantom) return true
     // Doble avance: hay una fase archivada heredando el P&L de la anterior, así
     // que la cuenta quedó en una fase que nunca se completó y debe retroceder.
-    return correctedStageIndex(account) < account.current_stage_index
+    if (correctedStageIndex(account) < account.current_stage_index) return true
+    // Refuerzo independiente del historial: en Fondeo Futuros, la fase activa no
+    // puede haber "avanzado" si su P&L de fase es 0 Y existe alguna fase previa
+    // sin archivar con netPnl > 0. Es el rastro de haber saltado una fase sin
+    // operarla (el detector de arriba falla si el historial no guarda netPnl).
+    if (account.rules.type === 'futures' && account.current_stage_index >= 1) {
+      const hist = account.rules.stage_history ?? []
+      const missingPrev = (() => {
+        for (let i = 0; i < account.current_stage_index; i++) {
+          if (!hist.some((h) => (typeof h.stageIndex === 'number' ? h.stageIndex : stageLabelIndex(account, h.stageLabel)) === i)) {
+            return true
+          }
+        }
+        return false
+      })()
+      if (missingPrev) return true
+    }
+    return false
   })()
 
   async function addCapital() {
@@ -498,12 +515,19 @@ export default function StagesPage() {
                   </Button>
                 ) : null}
                 <Button variant="subtle" onClick={fixPhaseData}>
-                  Corregir fase (balance + excluir operaciones anteriores)
+                  {correctedStageIndex(account) < account.current_stage_index
+                    ? `Corregir avance de fase (volver a ${
+                        analysis.stages[correctedStageIndex(account)]?.stageLabel ?? 'la fase anterior'
+                      })`
+                    : 'Corregir fase (balance + excluir operaciones anteriores)'}
                 </Button>
               </div>
               <p className="muted" style={{ fontSize: 12, margin: '8px 0 0' }}>
-                Se detectaron datos de la fase que no cuadran (balance de entrada, operaciones de
-                fases anteriores o historial). Usa la corrección para ajustarlos.
+                {correctedStageIndex(account) < account.current_stage_index
+                  ? `Se detectó un avance de fase de más: quedaste en Fondeo sin haber completado Colchón. La corrección te devuelve a ${
+                      analysis.stages[correctedStageIndex(account)]?.stageLabel ?? 'la fase anterior'
+                    } con 0 de progreso.`
+                  : 'Se detectaron datos de la fase que no cuadran (balance de entrada, operaciones de fases anteriores o historial). Usa la corrección para ajustarlos.'}
               </p>
             </div>
           ) : null}
