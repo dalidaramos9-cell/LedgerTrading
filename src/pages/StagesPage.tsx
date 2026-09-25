@@ -287,15 +287,48 @@ export default function StagesPage() {
     const accountTrades = trades
       .filter((t) => t.account_id === account.id)
       .sort((a, b) => a.date.localeCompare(b.date))
+    // Fecha de inicio de la fase que se restaura. Al revertir un doble avance la
+    // fase restaurada es la PRIMERA incompleta, así que arranca donde arrancó el
+    // programa: si se continuara usando la fecha del avance defectuoso (el día en
+    // que saltó de fase), todos los trades anteriores a ese día quedarían FUERA de
+    // la fase activa y solo se verían al seleccionarla en el historial (ese era el
+    // síntoma de que los trades de Evaluación aparecían dentro de Colchón).
+    const reverting = correctedIdx < account.current_stage_index
+    const programStart = account.start_date
+    // Fases previas que siguen archivadas (las que sí se completaron de verdad):
+    // su último día marca dónde debe empezar la fase restaurada como muy pronto.
+    const prevArchivedEnd = cleanHistory.reduce<string | null>(
+      (acc, h) => (h.endDate && (acc == null || h.endDate > acc) ? h.endDate : acc),
+      null,
+    )
     const currentStartKey = (account.rules.current_stage_start_date ?? account.start_date).slice(0, 10)
     // Trades con fecha ANTERIOR al inicio de la fase actual: pertenecen a las
     // fases previas y deben quedar excluidos (no se borran, se conservan).
     const beforePhase = accountTrades.filter((t) => t.date.slice(0, 10) < currentStartKey)
     const lastBefore = beforePhase.length > 0 ? beforePhase[beforePhase.length - 1].date : null
-    // Nueva fecha de inicio: el día siguiente al último trade previo a la fase.
-    // Si no hay trades previos, se conserva la fecha actual.
+    // Nueva fecha de inicio de la fase:
+    //  - Revirtiendo: el inicio del programa (o el día siguiente a la última fase
+    //    que sí se archivó legítimamente), para que los trades de la fase
+    //    restaurada vuelvan a contar en la fase activa.
+    //  - Sin revertir: el día siguiente al último trade previo a la fase (para
+    //    excluir de la fase activa las operaciones que pertenecen a las previas).
     let nextStart = account.rules.current_stage_start_date ?? account.start_date
-    if (lastBefore) {
+    if (reverting) {
+      // Se toma la fecha MÁS TEMPRANA: el inicio del programa o el arranque de la
+      // fase que se elimina del historial (que es, de hecho, la fase que se está
+      // restaurando). Usar "el día siguiente a la última fase archivada" sería un
+      // error: esa última fase archivada ES la fase que se borra del historial.
+      let candidate = programStart
+      const restoredEntry = (account.rules.stage_history ?? []).find(
+        (h) =>
+          (typeof h.stageIndex === 'number' ? h.stageIndex : stageLabelIndex(account, h.stageLabel)) ===
+          idx,
+      )
+      if (restoredEntry?.startDate && restoredEntry.startDate < candidate) {
+        candidate = restoredEntry.startDate
+      }
+      nextStart = candidate
+    } else if (lastBefore) {
       const d = new Date(lastBefore.slice(0, 10) + 'T12:00:00')
       d.setDate(d.getDate() + 1)
       nextStart = d.toISOString()
@@ -304,6 +337,29 @@ export default function StagesPage() {
       d.setDate(d.getDate() + 1)
       if (d.toISOString() > nextStart) nextStart = d.toISOString()
     }
+    // Al revertir, el cierre de la última fase archivada debe abarcar todos sus
+    // trades para no dejarlos huérfanos (ni en la fase que se cierra ni en la que
+    // se restaura). Se extiende su fecha de fin hasta la víspera del nuevo inicio.
+    const fixedHistory =
+      reverting && prevArchivedEnd && cleanHistory.length > 0
+        ? (() => {
+            const dayBefore = new Date(nextStart)
+            dayBefore.setDate(dayBefore.getDate() - 1)
+            const newEnd = dayBefore.toISOString()
+            // Solo se extiende el fin, nunca se recorta.
+            if (newEnd <= prevArchivedEnd) return cleanHistory
+            let lastEndIdx = -1
+            let best = ''
+            cleanHistory.forEach((h, i) => {
+              const e = h.endDate ?? ''
+              if (e >= best) {
+                best = e
+                lastEndIdx = i
+              }
+            })
+            return cleanHistory.map((h, i) => (i === lastEndIdx ? { ...h, endDate: newEnd } : h))
+          })()
+        : cleanHistory
     const updated = {
       ...account,
       // Reversión del doble avance: si el historial delata que una fase se cerró
@@ -322,7 +378,7 @@ export default function StagesPage() {
         ...account.rules,
         current_stage_balance: account.initial_balance,
         current_stage_start_date: nextStart,
-        stage_history: cleanHistory,
+        stage_history: fixedHistory,
         // Capital base del programa: se sella aquí (solo la primera vez) con el
         // valor vigente, para que los porcentajes de objetivo se calculen sobre
         // el capital original del programa y no sobre el balance de la fase.
