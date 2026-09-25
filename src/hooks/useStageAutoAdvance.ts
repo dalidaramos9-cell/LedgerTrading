@@ -80,6 +80,12 @@ export function useStageAutoAdvance(account: Account | null, analysis: AccountAn
     let updated: Account = {
       ...account,
       current_stage_index: nextIndex,
+      // Punto de partida de la etapa. En los programas con reset por fase
+      // (Axi Select, Fondeo Futuros y Fondeo CFD) la nueva fase arranca en 0, así
+      // que se reinicia. En CFD esto además alimenta la fila «En esta etapa» de la
+      // UI (`totalPnl - stage_start_pnl`): si no se reiniciara, esa fila arrastraría
+      // el P&L de las fases anteriores y mostraría un importe que no corresponde a
+      // la fase activa (p. ej. el P&L total acumulado en la etapa «Fondeada»).
       stage_start_pnl: hasPhaseReset ? 0 : analysis.stats.totalPnl,
     }
     // Reset de capital y estadísticas al pasar de fase (sin perder los trades ya
@@ -189,7 +195,15 @@ export function useStageAutoAdvance(account: Account | null, analysis: AccountAn
         ...(account.rules.stage_history ?? []),
         {
           stageLabel: pendingAdvance.stageLabel,
-          stageIndex: pendingAdvance.nextIndex - 1,
+          // La fase que se cierra es la que estaba ACTIVA, es decir la anterior a
+          // la nueva: `nextIndex - 1`. En Fondeo CFD, sin embargo, al avanzar a la
+          // fase N el índice nuevo ya es N-1, así que usar `nextIndex - 1` para el
+          // CFD archivaba la entrada con el índice de la fase a la que se ACABA de
+          // llegar (avanzar a «Fase 2» archivaba «Fase 2»). Esa entrada fantasma
+          // marcaba la fase nueva como completada y, con dos fases, empujaba la
+          // cuenta hasta «Fondeada». La fase cerrada es la de índice
+          // `account.current_stage_index` (la activa antes del avance).
+          stageIndex: account.current_stage_index,
           startBalance: Math.round(account.rules.current_stage_balance ?? account.initial_balance),
           endBalance: Math.round(analysis.stats.currentBalance),
           netPnl: stageNet,
@@ -200,21 +214,20 @@ export function useStageAutoAdvance(account: Account | null, analysis: AccountAn
           endDate: endIso,
         },
       ]
+      // La nueva fase conserva el balance real con el que se cerró la anterior:
+      // en una prop firm CFD las fases se superan manteniendo el balance, y el
+      // capital no se repone (sería un depósito gratuito por fase). Lo que se
+      // reinicia es el punto de partida de las estadísticas de la fase.
+      const balAtClose = analysis.stats.currentBalance
+      const fundedNow = nextIndex >= account.rules.phases.length
       updated = {
         ...updated,
-        status: 'funded',
+        status: fundedNow ? 'funded' : 'evaluation',
         rules: {
           ...account.rules,
           stage_history: history,
           current_stage_start_date: nextStartIso,
-          // La nueva fase arranca con el capital inicial del programa (la cuenta
-          // se "repone"); el resultado de la fase cerrada queda archivado.
-          current_stage_balance: account.initial_balance,
-          // Capital base del programa: se sella con el valor vigente ANTES de
-          // reponer, para que los porcentajes de objetivo no cambien de fase en
-          // fase (los objetivos de CFD vienen en $, pero `targetPct` se muestra
-          // en la UI sobre esta base).
-          program_base_balance: account.rules.program_base_balance ?? account.initial_balance,
+          current_stage_balance: balAtClose,
         },
       }
     }

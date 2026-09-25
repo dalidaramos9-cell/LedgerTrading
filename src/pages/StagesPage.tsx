@@ -235,10 +235,18 @@ export default function StagesPage() {
         start: (h.startDate ?? '').slice(0, 10),
         end: (h.endDate ?? '').slice(0, 10),
       }))
+      // Las entradas sin índice resoluble no se pueden ordenar: se descartan para
+      // que no falseen la comparación por parejas (quedaban empatadas en -1).
+      .filter((h) => h.idx >= 0)
       .sort((a, b) => a.idx - b.idx)
     for (let i = 1; i < ordered.length; i++) {
       const prev = ordered[i - 1]
       const cur = ordered[i]
+      // Solo se comparan fases DISTINTAS y consecutivas. Dos entradas con el mismo
+      // índice son un duplicado del mismo avance (no un doble avance) y se tratan
+      // aparte; y en CFD, avanzar a la fase N archiva la fase N con su propio P&L,
+      // así que comparar índices no consecutivos daría falsos positivos.
+      if (cur.idx !== prev.idx + 1) continue
       // Mismo P&L neto y fechas de fase solapadas/nulas: la fase no aportó nada
       // propio, se archivó con el P&L heredado de la anterior.
       const sameNet = prev.net === cur.net
@@ -309,12 +317,21 @@ export default function StagesPage() {
     // Cualquier entrada con índice >= al actual es un fantasma (creado por un
     // avance previo defectuoso) y se elimina para no marcar fases como
     // completadas cuando todavía no lo están.
+    //
+    // En Fondeo CFD la etapa terminal «Fondeada» tiene índice `phases.length`, que
+    // es exactamente el índice de la fase ACTIVA cuando la cuenta está en la
+    // última fase (`current_stage_index === phases.length - 1`). Sin exceptuarla,
+    // su entrada fantasma del historial se conservaba y la fase activa seguía
+    // apareciendo como «Completada» después de corregir.
+    const terminalCfdIndex =
+      account.rules.type === 'cfd' ? account.rules.phases.length : Number.POSITIVE_INFINITY
     const cleanHistory = history.filter((h) => {
       const hIdx =
         typeof h.stageIndex === 'number'
           ? h.stageIndex
           : stageLabelIndex(account, h.stageLabel)
-      return hIdx >= 0 && hIdx < idx
+      const legitTerminal = account.rules.type === 'cfd' && hIdx === terminalCfdIndex && hIdx >= idx
+      return (hIdx >= 0 && hIdx < idx) || (legitTerminal && hIdx > account.current_stage_index)
     })
     const lastEnd = cleanHistory.reduce<string | null>(
       (acc, h) => (h.endDate && (acc == null || h.endDate > acc) ? h.endDate : acc),
@@ -421,12 +438,23 @@ export default function StagesPage() {
       stage_start_pnl: 0,
       rules: {
         ...account.rules,
-        current_stage_balance: account.initial_balance,
+        // Se restaura el balance de ENTRADA de la fase que se recupera, no el
+        // capital inicial: en una prop firm CFD el avance no repone capital, así
+        // que el balance de la cuenta al empezar esa fase es el capital de esa
+        // fase. Si se guardó (`startBalance` del historial) se usa ese valor; si
+        // no, el capital inicial del programa.
+        current_stage_balance:
+          (account.rules.stage_history ?? []).find(
+            (h) =>
+              (typeof h.stageIndex === 'number'
+                ? h.stageIndex
+                : stageLabelIndex(account, h.stageLabel)) === idx,
+          )?.startBalance ?? account.initial_balance,
         current_stage_start_date: nextStart,
         stage_history: fixedHistory,
-        // Capital base del programa: se sella aquí (solo la primera vez) con el
-        // valor vigente, para que los porcentajes de objetivo se calculen sobre
-        // el capital original del programa y no sobre el balance de la fase.
+        // Capital base del programa. En CFD ya no se usa (`computeStage` calcula el
+        // porcentaje sobre `initial_balance`), pero se conserva para no romper
+        // cuentas antiguas que lo tuvieran sellado.
         program_base_balance: account.rules.program_base_balance ?? account.initial_balance,
       },
     }
@@ -810,17 +838,28 @@ export default function StagesPage() {
 }
 
 // Muestra el progreso específico de cada etapa (no el balance total repetido).
+// En la etapa ACTUAL se usa la ganancia de la fase que calcula el motor
+// (`targetBalance - fromBalance` para el objetivo y el P&L de la fase), en vez de
+// `totalPnl - stage_start_pnl`: en los programas con reset por fase el motor ya
+// acota los trades a la fase, así que ese cálculo arrastraba el P&L de las fases
+// anteriores y mostraba un importe que no correspondía a la fase activa.
 function montoStage(
   account: ReturnType<typeof useRouteAccount>,
   stage: ReturnType<typeof analyzeAccount>['stages'][number],
   totalPnl: number,
 ): string {
   if (!account) return '-'
-  const startPnl = account.stage_start_pnl ?? 0
-  const stageNet = totalPnl - startPnl
   if (stage.isComplete) return 'Completada ✓'
   if (stage.stageIndex === account.current_stage_index) {
-    return `En esta etapa: ${signedMoney(stageNet)}`
+    // `stage.currentBalance` es el P&L de la fase tal y como lo calcula el motor
+    // (ya filtrado por la fecha de inicio de la fase en Axi/Futuros/CFD).
+    const phaseNet =
+      account.rules.type === 'axi' ||
+      account.rules.type === 'futures' ||
+      account.rules.type === 'cfd'
+        ? stage.currentBalance
+        : totalPnl - (account.stage_start_pnl ?? 0)
+    return `En esta etapa: ${signedMoney(phaseNet)}`
   }
   return money(totalPnl)
 }

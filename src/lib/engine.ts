@@ -631,18 +631,13 @@ function futuresStageProgress(
           ? clampPct((stageNet / targetUSD) * 100)
           : 0
         : 0
-  // Base de cálculo del porcentaje de objetivo. `initial_balance` deja de ser el
-  // capital del programa en cuanto se avanza de fase (se repone al balance de
-  // entrada de la fase), así que se prefiere `program_base_balance` y, si la
-  // cuenta aún no lo tiene guardado (datos antiguos), se reconstruye: el balance
-  // de entrada de la fase actual es, por construcción, igual al capital del
-  // programa cuando el avance se hizo con el reset ya corregido.
-  const programBase =
-    (account.rules.type === 'axi' || account.rules.type === 'futures' || account.rules.type === 'cfd'
-      ? account.rules.program_base_balance
-      : undefined) ??
-    account.rules.current_stage_balance ??
-    account.initial_balance
+  // Base de cálculo del porcentaje de objetivo. En CFD la cuenta nunca se repone
+  // al capital inicial (se conserva el balance real tras las fases), así que
+  // `initial_balance` sigue siendo el capital del programa; no se usa
+  // `current_stage_balance`, que es el balance vivo y haría bailar el porcentaje
+  // a cada operación. `program_base_balance` se sella aquí solo si ya existía
+  // (datos antiguos), pero ya no se escribe en las cuentas nuevas.
+  const programBase = account.initial_balance
   return {
     stageLabel: label,
     stageIndex: index,
