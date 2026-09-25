@@ -108,6 +108,20 @@ export default function StagesPage() {
       : isoDate(new Date(account.start_date))
   const canEditStartDate = isAxiAccount || isFuturesAccount
 
+  // ¿Hay datos de la fase que estén mal y se puedan corregir? Se comprueba si el
+  // balance de entrada difiere del capital inicial (avance con el balance final)
+  // o si hay trades ANTIGUOS (con fecha anterior al inicio de la fase) que en
+  // realidad pertenecen a una fase previa. En ambos casos se ofrece la corrección.
+  const phaseNeedsFix = (() => {
+    if (!account || !canEditStartDate) return false
+    if (account.rules.type !== 'axi' && account.rules.type !== 'futures') return false
+    if ((account.rules.current_stage_balance ?? account.initial_balance) !== account.initial_balance) {
+      return true
+    }
+    const startKey = (account.rules.current_stage_start_date ?? account.start_date).slice(0, 10)
+    return trades.some((t) => t.account_id === account.id && t.date.slice(0, 10) < startKey)
+  })()
+
   async function addCapital() {
     // Si no se escribió un monto, se aplica el recomendado (mínimo + pérdida máx).
     const amt = capitalAmount.trim() !== '' ? parseFloat(capitalAmount) : suggestedCapital
@@ -362,15 +376,16 @@ export default function StagesPage() {
             <span>Balance de la fase (entrada + P&L)</span>
             <strong>{money(analysis.stats.currentBalance)}</strong>
           </div>
-          {isFuturesAccount &&
-          (account.rules.current_stage_balance ?? account.initial_balance) !==
-            account.initial_balance ? (
+          {isFuturesAccount && phaseNeedsFix ? (
             <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <Button variant="subtle" onClick={restorePhaseCapital}>
-                Reponer al capital inicial ({money(account.initial_balance)})
-              </Button>
+              {(account.rules.current_stage_balance ?? account.initial_balance) !==
+              account.initial_balance ? (
+                <Button variant="subtle" onClick={restorePhaseCapital}>
+                  Reponer al capital inicial ({money(account.initial_balance)})
+                </Button>
+              ) : null}
               <Button variant="subtle" onClick={fixPhaseData}>
-                Corregir fase (balance + excluir trades anteriores)
+                Corregir fase (balance + excluir operaciones anteriores)
               </Button>
             </div>
           ) : null}
@@ -427,14 +442,16 @@ export default function StagesPage() {
               <Button variant="primary" sm onClick={() => setCapitalOpen(true)}>
                 + Agregar capital
               </Button>
-              {(account.rules.current_stage_balance ?? account.initial_balance) !==
-              account.initial_balance ? (
+              {phaseNeedsFix ? (
                 <>
-                  <Button variant="subtle" sm onClick={restorePhaseCapital}>
-                    Reponer al capital inicial ({money(account.initial_balance)})
-                  </Button>
+                  {(account.rules.current_stage_balance ?? account.initial_balance) !==
+                  account.initial_balance ? (
+                    <Button variant="subtle" sm onClick={restorePhaseCapital}>
+                      Reponer al capital inicial ({money(account.initial_balance)})
+                    </Button>
+                  ) : null}
                   <Button variant="subtle" sm onClick={fixPhaseData}>
-                    Corregir fase (balance + excluir trades anteriores)
+                    Corregir fase (balance + excluir operaciones anteriores)
                   </Button>
                 </>
               ) : null}
