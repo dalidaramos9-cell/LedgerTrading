@@ -355,7 +355,14 @@ export default function AccountForm({
           <Field label="Fecha de inicio">
             <input type="date" className="input" value={startDate} onChange={(e) => setStartDate(e.target.value)} required />
           </Field>
-          <Field label="Estado">
+          <Field
+            label="Estado"
+            hint={
+              type === 'cfd' || type === 'futures'
+                ? 'En cuentas con fases el estado se deriva de la etapa: «En evaluación» mientras queden fases, «Fondeada» al superarlas. «Fallida» y «Pasada» sí se respetan.'
+                : undefined
+            }
+          >
             <select className="select" value={status} onChange={(e) => setStatus(e.target.value as AccountStatus)}>
               {(Object.keys(ACCOUNT_STATUS_LABELS) as AccountStatus[]).map((s) => (
                 <option key={s} value={s}>{ACCOUNT_STATUS_LABELS[s]}</option>

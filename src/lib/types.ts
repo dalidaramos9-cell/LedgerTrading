@@ -263,6 +263,58 @@ export const ACCOUNT_STATUS_LABELS: Record<AccountStatus, string> = {
   cushion: 'Colchón',
 }
 
+// Nº de etapas INTERMEDIAS de una cuenta (las que tienen objetivo).
+// CFD: Fase 1 … Fase N            → phases.length (2 por defecto).
+// Futuros: Evaluación, Colchón    → 2.
+// Axi: las etapas de la ruta. Devuelve null si el programa no tiene etapas.
+//
+// Coincide con el índice de la etapa terminal: en CFD y Futuros,
+// `current_stage_index >= stageCountOf(account)` significa «ya está fondeada»,
+// igual que hace el motor (engine.ts: `current_stage_index >= phaseCount`) y el
+// avance automático (useStageAutoAdvance: `nextIndex >= 2 ? 'funded'`).
+export function stageCountOf(account: {
+  rules: { type: string; phases?: { length: number }; stages?: { length: number } }
+}): number | null {
+  if (account.rules.type === 'cfd') return account.rules.phases?.length ?? 0
+  if (account.rules.type === 'futures') return 2
+  if (account.rules.type === 'axi') return account.rules.stages?.length ?? null
+  return null
+}
+
+// Estado EFECTIVO de la cuenta, para pintar la insignia.
+//
+// `accounts.status` es un campo derivado: lo sobreescribe el motor de avance
+// (useStageAutoAdvance) y StagesPage al corregir fases. Pero AccountForm también
+// permite editarlo a mano, así que puede quedar desincronizado: eligiendo
+// «Fondeada» en una cuenta que sigue en una fase intermedia, la insignia
+// contradice a la fase activa (p. ej. etiqueta «Fondeada» con «Fase 2» activa).
+//
+// Derivarlo aquí hace imposible esa contradicción sin perder los estados
+// manuales: `failed` y `passed` los marca el usuario y el motor nunca los
+// escribe, por lo que tienen prioridad. En las cuentas sin etapas gestionadas
+// automáticamente (capital propio y Axi) se respeta el valor guardado.
+export function effectiveAccountStatus(account: {
+  type: AccountType
+  status: AccountStatus
+  current_stage_index: number
+  rules: { type: string; phases?: { length: number }; stages?: { length: number } }
+}): AccountStatus {
+  // Estados manuales: no se derivan nunca.
+  if (account.status === 'failed' || account.status === 'passed') return account.status
+  // Capital propio y Axi Select: sin avance automático, manda lo guardado.
+  if (account.rules.type !== 'cfd' && account.rules.type !== 'futures') return account.status
+
+  const intermediates = stageCountOf(account)
+  if (intermediates == null || intermediates === 0) return account.status
+
+  const idx = account.current_stage_index ?? 0
+  // Superadas todas las fases intermedias → etapa terminal («Fondeada»/«Fondeo»).
+  if (idx >= intermediates) return 'funded'
+  // Futuros: la etapa intermedia 1 es «Colchón».
+  if (account.rules.type === 'futures') return idx === 1 ? 'cushion' : 'evaluation'
+  return 'evaluation'
+}
+
 export const PAYOUT_STATUS_LABELS: Record<PayoutStatus, string> = {
   requested: 'Solicitado',
   approved: 'Aprobado',

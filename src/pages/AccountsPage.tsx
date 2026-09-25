@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useData } from '../contexts/DataContext'
 import { analyzeAccount } from '../lib/engine'
-import { ACCOUNT_TYPE_LABELS, ACCOUNT_STATUS_LABELS, Account, AccountStatus } from '../lib/types'
+import { ACCOUNT_TYPE_LABELS, ACCOUNT_STATUS_LABELS, Account, AccountStatus, effectiveAccountStatus } from '../lib/types'
 import { money } from '../lib/fmt'
 import AccountForm from '../components/AccountForm'
 import { Button, Badge, EmptyState, ConfirmDialog } from '../components/ui'
@@ -58,6 +58,9 @@ export default function AccountsPage() {
             const accTrades = trades.filter((t) => t.account_id === acc.id)
             const an = analyzeAccount(acc, accTrades, payouts.filter((p) => p.account_id === acc.id))
             const isAxiAcct = acc.type === 'axi'
+            // Estado derivado de la etapa real (ver effectiveAccountStatus), para
+            // que la insignia no contradiga a la fase activa.
+            const status = effectiveAccountStatus(acc)
             // Fase actual (para Axi) y su multiplicador.
             const currentStage =
               isAxiAcct && acc.rules.type === 'axi' && acc.rules.stages.length > 0
@@ -95,7 +98,7 @@ export default function AccountsPage() {
                       {ACCOUNT_TYPE_LABELS[acc.type]} · {acc.broker}
                     </div>
                   </div>
-                  <Badge tone={STATUS_TONE[acc.status]}>{ACCOUNT_STATUS_LABELS[acc.status]}</Badge>
+                  <Badge tone={STATUS_TONE[status]}>{ACCOUNT_STATUS_LABELS[status]}</Badge>
                 </div>
                 <div>
                   <div className="account-balance">

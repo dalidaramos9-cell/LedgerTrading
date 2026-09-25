@@ -1,6 +1,6 @@
 import { useParams, NavLink, Outlet } from 'react-router-dom'
 import { useData } from '../contexts/DataContext'
-import { ACCOUNT_TYPE_LABELS, ACCOUNT_STATUS_LABELS, AccountStatus } from '../lib/types'
+import { ACCOUNT_TYPE_LABELS, ACCOUNT_STATUS_LABELS, Account, AccountStatus, effectiveAccountStatus } from '../lib/types'
 import { money } from '../lib/fmt'
 import { Badge, EmptyState } from './ui'
 import { AccountRouteProvider } from '../contexts/AccountRouteContext'
@@ -24,17 +24,16 @@ export const ACCOUNT_TABS = [
   { to: 'payouts', label: 'Payouts' },
 ]
 
-function AccountHeader({
-  account,
-}: {
-  account: { name: string; type: string; broker: string; status: AccountStatus; initial_balance: number }
-}) {
+function AccountHeader({ account }: { account: Account }) {
+  // Se deriva el estado de la etapa real para que la insignia no pueda
+  // contradecir a la fase activa (ver effectiveAccountStatus).
+  const status = effectiveAccountStatus(account)
   return (
     <div className="account-tabs-header">
       <div className="account-tabs-title">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <h1 className="page-title">{account.name}</h1>
-          <Badge tone={STATUS_TONE[account.status]}>{ACCOUNT_STATUS_LABELS[account.status]}</Badge>
+          <Badge tone={STATUS_TONE[status]}>{ACCOUNT_STATUS_LABELS[status]}</Badge>
         </div>
         <p className="page-sub" style={{ marginTop: 2 }}>
           {ACCOUNT_TYPE_LABELS[account.type as keyof typeof ACCOUNT_TYPE_LABELS]} · {account.broker} · Inicial{' '}
