@@ -521,7 +521,8 @@ function computeStages(account: Account, totalPnl: number): StageProgress[] {
         targetPct: account.initial_balance > 0 ? (target / account.initial_balance) * 100 : 0,
         progressPct,
         needsAdvance: isCurrent && target > 0 && stageNet >= target - 0.001,
-        isComplete: i < account.current_stage_index,
+        // La fase activa nunca puede figurar como completada.
+        isComplete: !isCurrent && i < account.current_stage_index,
       })
     })
     // Etapa terminal "Fondeada"
@@ -577,7 +578,8 @@ function computeStages(account: Account, totalPnl: number): StageProgress[] {
         targetPct: st.targetPct,
         progressPct,
         needsAdvance: isCurrent && target > 0 && stageNet >= target - 0.001,
-        isComplete: i < account.current_stage_index,
+        // La fase activa nunca puede figurar como completada.
+        isComplete: !isCurrent && i < account.current_stage_index,
       })
     })
   }
@@ -594,8 +596,20 @@ function futuresStageProgress(
   stageNet: number,
 ): StageProgress {
   const isCurrent = index === account.current_stage_index
+  // Una etapa está COMPLETADA si quedó archivada en `stage_history` (fuente fiable
+  // tras el reset por fase) o si el índice actual ya la superó. Basarse solo en el
+  // índice marcaba como completadas etapas que en realidad seguían activas cuando
+  // el historial y el índice no coincidían.
+  // Una etapa está COMPLETADA si quedó archivada en `stage_history` Y es una fase
+  // ANTERIOR a la actual. Dos salvaguardas importantes:
+  //  1. `isCurrent` manda: la fase activa NUNCA puede estar completada, aunque el
+  //     historial tenga una entrada suya (residuo de un avance defectuoso).
+  //     Antes esto marcaba "Colchón" como completada estando en Colchón.
+  //  2. Solo se consideran fases anteriores a la actual, nunca posteriores.
+  const archived = (account.rules.stage_history ?? []).some((h) => h.stageLabel === label)
+  const isComplete = !isCurrent && (archived || index < account.current_stage_index)
   const progressPct =
-    index < account.current_stage_index
+    isComplete
       ? 100
       : isCurrent
         ? targetUSD > 0
@@ -611,7 +625,7 @@ function futuresStageProgress(
     targetPct: account.initial_balance > 0 ? (targetUSD / account.initial_balance) * 100 : 0,
     progressPct,
     needsAdvance: isCurrent && targetUSD > 0 && stageNet >= targetUSD - 0.001,
-    isComplete: index < account.current_stage_index,
+    isComplete,
   }
 }
 

@@ -3,7 +3,7 @@ import { useData } from '../contexts/DataContext'
 import { useRouteAccount } from '../contexts/AccountRouteContext'
 import { useActivePhase } from '../contexts/ActivePhaseContext'
 import { analyzeAccount } from '../lib/engine'
-import { AxiStageHistory } from '../lib/types'
+import { AxiStageHistory, Account } from '../lib/types'
 import { money, signedMoney, isoDate, shortDate } from '../lib/fmt'
 import { useStageAutoAdvance } from '../hooks/useStageAutoAdvance'
 import CelebrationModal from '../components/CelebrationModal'
@@ -119,7 +119,17 @@ export default function StagesPage() {
       return true
     }
     const startKey = (account.rules.current_stage_start_date ?? account.start_date).slice(0, 10)
-    return trades.some((t) => t.account_id === account.id && t.date.slice(0, 10) < startKey)
+    if (trades.some((t) => t.account_id === account.id && t.date.slice(0, 10) < startKey)) {
+      return true
+    }
+    // Historial "fantasma": entradas que corresponden a la fase actual o a fases
+    // posteriores. Hacen que Progreso de etapas marque como completadas fases que
+    // todavía están activas.
+    const idx = account.current_stage_index
+    return (account.rules.stage_history ?? []).some((h) => {
+      const hIdx = typeof h.stageIndex === 'number' ? h.stageIndex : stageLabelIndex(account, h.stageLabel)
+      return hIdx < 0 || hIdx >= idx
+    })
   })()
 
   async function addCapital() {
@@ -148,6 +158,23 @@ export default function StagesPage() {
   // Repone el capital de entrada de la fase activa al capital inicial de la
   // cuenta. Se usa para corregir cuentas que avanzaron de fase con el balance
   // final de la fase anterior (o para reaplicar el reset a mano).
+  // Índice de una fase a partir de su etiqueta, para poder sanear el historial
+  // cuando las entradas antiguas no guardaban `stageIndex`.
+  function stageLabelIndex(acc: Account, label: string): number {
+    const r = acc.rules
+    if (r.type === 'futures') {
+      const labels = ['Evaluación', 'Colchón', 'Fondeo']
+      return labels.indexOf(label)
+    }
+    if (r.type === 'axi') {
+      return r.stages.findIndex((s) => s.label === label)
+    }
+    return -1
+  }
+
+  // Repone el balance de entrada de la fase al capital inicial del programa.
+  // Útil cuando la cuenta avanzó de fase con el reset antiguo (que guardó el
+  // balance final de la fase anterior en lugar del capital inicial).
   async function restorePhaseCapital() {
     if (!account) return
     if (account.rules.type !== 'axi' && account.rules.type !== 'futures') return
@@ -170,12 +197,27 @@ export default function StagesPage() {
   // DESPUÉS del último trade de la fase anterior. Sin esto, reponer el balance
   // no basta: los trades registrados antes del avance pero con fecha posterior
   // al inicio de la fase seguirían contando en las estadísticas de la fase nueva.
+  //
+  // Además SANEA el historial de fases: descarta entradas duplicadas o
+  // posteriores/iguales a la fase actual (que hacían que la sección de Progreso
+  // de etapas marcara como completadas fases que seguían activas).
   async function fixPhaseData() {
     if (!account) return
     if (account.rules.type !== 'axi' && account.rules.type !== 'futures') return
-    // Fases ya completadas (el historial guarda hasta dónde llegó cada una).
+    const idx = account.current_stage_index
     const history = account.rules.stage_history ?? []
-    const lastEnd = history.reduce<string | null>(
+    // Fases ya completadas de verdad: solo las ANTERIORES a la fase actual.
+    // Cualquier entrada con índice >= al actual es un fantasma (creado por un
+    // avance previo defectuoso) y se elimina para no marcar fases como
+    // completadas cuando todavía no lo están.
+    const cleanHistory = history.filter((h) => {
+      const hIdx =
+        typeof h.stageIndex === 'number'
+          ? h.stageIndex
+          : stageLabelIndex(account, h.stageLabel)
+      return hIdx >= 0 && hIdx < idx
+    })
+    const lastEnd = cleanHistory.reduce<string | null>(
       (acc, h) => (h.endDate && (acc == null || h.endDate > acc) ? h.endDate : acc),
       null,
     )
@@ -208,6 +250,7 @@ export default function StagesPage() {
         ...account.rules,
         current_stage_balance: account.initial_balance,
         current_stage_start_date: nextStart,
+        stage_history: cleanHistory,
       },
     }
     try {
@@ -280,7 +323,11 @@ export default function StagesPage() {
         ) : (
           <div>
             {analysis.stages.map((stage) => {
-              const completed = stage.isComplete || stage.needsAdvance
+              // `stage.isComplete` es la única fuente de verdad de "completada".
+              // `needsAdvance` solo significa "objetivo cumplido, se puede avanzar":
+              // sumarlo aquí marcaba la fase ACTUAL como completada y descolocaba
+              // la sección de Progreso de etapas.
+              const completed = stage.isComplete
               const isCurrentStage = stage.stageIndex === account.current_stage_index
               // Registro del historial de fases completadas (Axi Select o
               // Fondeo Futuros) que corresponde a esta etapa (para sus fechas y
