@@ -22,11 +22,22 @@ export function useStageAutoAdvance(account: Account | null, analysis: AccountAn
   const [celebrated, setCelebrated] = useState<ReturnType<typeof toCelebration> | null>(null)
   const [pendingAdvance, setPendingAdvance] = useState<PendingAdvance | null>(null)
   const advancing = useRef(false)
+  // Índice de fase al que se acaba de avanzar (para no encadenar avances).
+  const justAdvanced = useRef<number | null>(null)
 
   useEffect(() => {
     if (!account || !analysis || pendingAdvance || advancing.current) return
+    // Tras confirmar un avance, el índice de fase cambia pero el `analysis` que
+    // llega en ese render todavía es el anterior y puede seguir marcando la fase
+    // recién cerrada (o la nueva) como lista. `justAdvanced` guarda el índice al
+    // que se acaba de avanzar para no encadenar dos avances seguidos
+    // (Evaluación → Colchón → Fondeo sin pararse en Colchón).
+    if (justAdvanced.current === account.current_stage_index) return
     const pending = analysis.stages.find((s) => s.needsAdvance && !s.isComplete)
     if (!pending) return
+    // La fase que pide avanzar debe ser la fase ACTIVA: si el motor señala otra
+    // (análisis desincronizado del índice guardado), no se avanza.
+    if (pending.stageIndex !== account.current_stage_index) return
     // No avanzamos aún: pedimos las fechas de finalización/inicio.
     advancing.current = true
     const nextAdvance = analysis.stages[pending.stageIndex + 1]
@@ -68,7 +79,23 @@ export function useStageAutoAdvance(account: Account | null, analysis: AccountAn
     // Reset de capital y estadísticas al pasar de fase (sin perder los trades ya
     // registrados): se guarda el resumen de la fase cerrada en `stage_history` y
     // se reinician los puntos de partida para que la nueva fase arranque en cero.
-    const phasePnl = analysis.stats.totalPnl - (hasPhaseReset ? 0 : account.stage_start_pnl ?? 0)
+    //
+    // `phasePnl` debe ser el P&L DE LA FASE QUE SE CIERRA, no el de toda la
+    // cuenta. Con reset por fase (`hasPhaseReset`) el motor ya filtra por fecha,
+    // pero cuando la fase se cierra con datos antiguos o el historial aún no
+    // refleja el P&L consumido, `analysis.stats.totalPnl` puede incluir fases
+    // anteriores. Se descuenta lo ya archivado en `stage_history` para que:
+    //   1. el `netPnl` guardado corresponda solo a la fase cerrada, y
+    //   2. la fase SIGUIENTE arranque con 0 de P&L y no dispare un segundo
+    //      avance automático (era la causa de saltar Evaluación → Colchón →
+    //      Fondeo sin pararse en Colchón).
+    const alreadyArchived = (account.rules.stage_history ?? []).reduce(
+      (s, h) => s + (h.netPnl ?? 0),
+      0,
+    )
+    const phasePnl = hasPhaseReset
+      ? analysis.stats.totalPnl - alreadyArchived
+      : analysis.stats.totalPnl - (account.stage_start_pnl ?? 0)
     const stageNet = Math.round(phasePnl * 100) / 100
     const stageStartDate = account.rules.type === 'axi' || account.rules.type === 'futures'
       ? account.rules.current_stage_start_date ?? account.start_date
@@ -104,6 +131,9 @@ export function useStageAutoAdvance(account: Account | null, analysis: AccountAn
         // La nueva fase arranca con el capital inicial del programa (la cuenta se
         // "repone"), no con el balance con el que cerró la fase anterior.
         current_stage_balance: account.initial_balance,
+        // Capital base del programa: se sella con el valor vigente ANTES de
+        // reponer, para que los porcentajes de objetivo no cambien de fase en fase.
+        program_base_balance: account.rules.program_base_balance ?? account.initial_balance,
       }
     } else if (account.rules.type === 'futures') {
       // Fondeo Futuros: igual que Axi, se archiva la fase cerrada (Evaluación o
@@ -136,11 +166,22 @@ export function useStageAutoAdvance(account: Account | null, analysis: AccountAn
           // La nueva fase arranca con el capital inicial (la cuenta se "repone");
           // el resultado de la fase cerrada queda archivado en el historial.
           current_stage_balance: account.initial_balance,
+          // Capital base del programa: se sella con el valor vigente ANTES de
+          // reponer (el de la fase que se cierra), que es el capital original del
+          // programa. Los porcentajes de objetivo se calculan sobre él, así que
+          // no debe seguir al balance de entrada de cada fase.
+          program_base_balance: account.rules.program_base_balance ?? account.initial_balance,
         },
       }
     }
 
     setPendingAdvance(null)
+    // Se recuerda el índice al que se avanzó: mientras el `analysis` siga siendo
+    // el del render anterior, no debe dispararse otro avance encadenado.
+    justAdvanced.current = nextIndex
+    setTimeout(() => {
+      justAdvanced.current = null
+    }, 1500)
     setCelebrated(toCelebration(pendingAdvance.stageLabel, nextIndex, account, analysis))
     try {
       await updateAccount(updated)

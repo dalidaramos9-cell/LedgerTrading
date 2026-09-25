@@ -619,13 +619,25 @@ function futuresStageProgress(
           ? clampPct((stageNet / targetUSD) * 100)
           : 0
         : 0
+  // Base de cálculo del porcentaje de objetivo. `initial_balance` deja de ser el
+  // capital del programa en cuanto se avanza de fase (se repone al balance de
+  // entrada de la fase), así que se prefiere `program_base_balance` y, si la
+  // cuenta aún no lo tiene guardado (datos antiguos), se reconstruye: el balance
+  // de entrada de la fase actual es, por construcción, igual al capital del
+  // programa cuando el avance se hizo con el reset ya corregido.
+  const programBase =
+    (account.rules.type === 'axi' || account.rules.type === 'futures'
+      ? account.rules.program_base_balance
+      : undefined) ??
+    account.rules.current_stage_balance ??
+    account.initial_balance
   return {
     stageLabel: label,
     stageIndex: index,
     fromBalance: startPnl,
     targetBalance: targetUSD,
     currentBalance: totalPnl,
-    targetPct: account.initial_balance > 0 ? (targetUSD / account.initial_balance) * 100 : 0,
+    targetPct: programBase > 0 ? (targetUSD / programBase) * 100 : 0,
     progressPct,
     needsAdvance: isCurrent && targetUSD > 0 && stageNet >= targetUSD - 0.001,
     isComplete,

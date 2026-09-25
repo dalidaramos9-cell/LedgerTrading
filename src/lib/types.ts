@@ -78,6 +78,12 @@ export interface FuturesRules {
   // Historial de fases completadas (para no perder los datos al reiniciar el
   // conteo en cada cambio de fase).
   stage_history?: FuturesStageHistory[]
+  // Capital base del programa (el que tenía la cuenta al ENTRAR en Evaluación,
+  // p. ej. 50.000). `initial_balance` se sobrescribe con el balance de entrada
+  // de cada fase al avanzar (la cuenta se "repone"), así que los porcentajes de
+  // objetivo deben calcularse sobre este valor para que 3.000 sigan siendo el 6%
+  // del programa y no el 6% de la fase.
+  program_base_balance?: number
 }
 
 export interface AxiStage {
@@ -126,6 +132,12 @@ export interface AxiRules {
   stage_capital_total?: number
   // Balance de la cuenta al entrar a la fase actual (tras ajuste de capital).
   current_stage_balance?: number
+  // Capital base del programa (el que tenía la cuenta al ENTRAR en la primera
+  // fase, p. ej. 50.000). `initial_balance` se sobrescribe con el balance de
+  // entrada de cada fase al avanzar (la cuenta se "repone"), así que los
+  // porcentajes de objetivo deben calcularse sobre este valor para que 3.000
+  // sigan siendo el 6% del programa y no el 6% de la fase.
+  program_base_balance?: number
   // Fecha (ISO) en la que la cuenta entró a la fase actual. Permite filtrar
   // los trades de la fase activa por fecha.
   current_stage_start_date?: string

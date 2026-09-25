@@ -126,10 +126,14 @@ export default function StagesPage() {
     // posteriores. Hacen que Progreso de etapas marque como completadas fases que
     // todavía están activas.
     const idx = account.current_stage_index
-    return (account.rules.stage_history ?? []).some((h) => {
+    const phantom = (account.rules.stage_history ?? []).some((h) => {
       const hIdx = typeof h.stageIndex === 'number' ? h.stageIndex : stageLabelIndex(account, h.stageLabel)
       return hIdx < 0 || hIdx >= idx
     })
+    if (phantom) return true
+    // Doble avance: hay una fase archivada heredando el P&L de la anterior, así
+    // que la cuenta quedó en una fase que nunca se completó y debe retroceder.
+    return correctedStageIndex(account) < account.current_stage_index
   })()
 
   async function addCapital() {
@@ -172,6 +176,42 @@ export default function StagesPage() {
     return -1
   }
 
+  // Una fase archivada en el historial está "sospechosa" si su P&L es igual al
+  // de la fase anterior: significa que se archivó arrastrando el mismo P&L (el
+  // doble avance que saltaba Evaluación → Colchón → Fondeo), no porque se
+  // hubiera operado y completado. Devuelve el índice de la PRIMERA fase
+  // sospechosa, o -1 si todas son legítimas.
+  function firstSuspiciousHistoryIndex(acc: Account): number {
+    const hist = (acc.rules.type === 'axi' || acc.rules.type === 'futures'
+      ? acc.rules.stage_history
+      : []) ?? []
+    const ordered = hist
+      .map((h) => ({
+        idx: typeof h.stageIndex === 'number' ? h.stageIndex : stageLabelIndex(acc, h.stageLabel),
+        net: Math.round((h.netPnl ?? 0) * 100) / 100,
+        start: (h.startDate ?? '').slice(0, 10),
+        end: (h.endDate ?? '').slice(0, 10),
+      }))
+      .sort((a, b) => a.idx - b.idx)
+    for (let i = 1; i < ordered.length; i++) {
+      const prev = ordered[i - 1]
+      const cur = ordered[i]
+      // Mismo P&L neto y fechas de fase solapadas/nulas: la fase no aportó nada
+      // propio, se archivó con el P&L heredado de la anterior.
+      const sameNet = prev.net === cur.net
+      const emptyRange = cur.start === '' || cur.end === '' || cur.start >= cur.end
+      if (sameNet && (emptyRange || cur.start <= prev.end)) return cur.idx
+    }
+    return -1
+  }
+
+  // Índice al que debería estar la cuenta: el de la fase ANTES de la primera
+  // fase archivada de forma ilegítima. Si no hay anomalías, el índice actual.
+  function correctedStageIndex(acc: Account): number {
+    const bad = firstSuspiciousHistoryIndex(acc)
+    return bad > 0 && bad <= acc.current_stage_index ? bad : acc.current_stage_index
+  }
+
   // Repone el balance de entrada de la fase al capital inicial del programa.
   // Útil cuando la cuenta avanzó de fase con el reset antiguo (que guardó el
   // balance final de la fase anterior en lugar del capital inicial).
@@ -204,7 +244,11 @@ export default function StagesPage() {
   async function fixPhaseData() {
     if (!account) return
     if (account.rules.type !== 'axi' && account.rules.type !== 'futures') return
-    const idx = account.current_stage_index
+    // Índice corregido: si el historial delata un doble avance (una fase se
+    // archivó heredando el P&L de la anterior), la cuenta debe VOLVER a esa fase
+    // en lugar de quedarse en una posterior que nunca se completó.
+    const correctedIdx = correctedStageIndex(account)
+    const idx = correctedIdx
     const history = account.rules.stage_history ?? []
     // Fases ya completadas de verdad: solo las ANTERIORES a la fase actual.
     // Cualquier entrada con índice >= al actual es un fantasma (creado por un
@@ -245,12 +289,27 @@ export default function StagesPage() {
     }
     const updated = {
       ...account,
+      // Reversión del doble avance: si el historial delata que una fase se cerró
+      // sin completarse, la cuenta vuelve a ESA fase (y su estado de programa).
+      current_stage_index: idx,
+      status:
+        account.rules.type === 'futures'
+          ? idx >= 2
+            ? ('funded' as const)
+            : idx === 1
+              ? ('cushion' as const)
+              : ('evaluation' as const)
+          : account.status,
       stage_start_pnl: 0,
       rules: {
         ...account.rules,
         current_stage_balance: account.initial_balance,
         current_stage_start_date: nextStart,
         stage_history: cleanHistory,
+        // Capital base del programa: se sella aquí (solo la primera vez) con el
+        // valor vigente, para que los porcentajes de objetivo se calculen sobre
+        // el capital original del programa y no sobre el balance de la fase.
+        program_base_balance: account.rules.program_base_balance ?? account.initial_balance,
       },
     }
     try {
@@ -510,7 +569,11 @@ export default function StagesPage() {
                     </Button>
                   ) : null}
                   <Button variant="subtle" sm onClick={fixPhaseData}>
-                    Corregir fase (balance + excluir operaciones anteriores)
+                    {correctedStageIndex(account) < account.current_stage_index
+                      ? `Corregir avance de fase (volver a ${
+                          analysis.stages[correctedStageIndex(account)]?.stageLabel ?? 'la fase anterior'
+                        })`
+                      : 'Corregir fase (balance + excluir operaciones anteriores)'}
                   </Button>
                 </>
               ) : null}
