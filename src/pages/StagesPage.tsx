@@ -205,6 +205,12 @@ export default function StagesPage() {
       const labels = ['Evaluación', 'Colchón', 'Fondeo']
       return labels.indexOf(label)
     }
+    if (r.type === 'cfd') {
+      // Fase 1 … Fase N + «Fondeada» (misma secuencia que dibuja el motor).
+      const idx = r.phases.findIndex((p) => p.label === label)
+      if (idx >= 0) return idx
+      return label === 'Fondeada' ? r.phases.length : -1
+    }
     if (r.type === 'axi') {
       return r.stages.findIndex((s) => s.label === label)
     }

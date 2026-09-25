@@ -638,7 +638,7 @@ function futuresStageProgress(
   // de entrada de la fase actual es, por construcción, igual al capital del
   // programa cuando el avance se hizo con el reset ya corregido.
   const programBase =
-    (account.rules.type === 'axi' || account.rules.type === 'futures'
+    (account.rules.type === 'axi' || account.rules.type === 'futures' || account.rules.type === 'cfd'
       ? account.rules.program_base_balance
       : undefined) ??
     account.rules.current_stage_balance ??
