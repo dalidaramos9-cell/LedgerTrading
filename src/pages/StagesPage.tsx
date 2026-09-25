@@ -376,17 +376,25 @@ export default function StagesPage() {
             <span>Balance de la fase (entrada + P&L)</span>
             <strong>{money(analysis.stats.currentBalance)}</strong>
           </div>
-          {isFuturesAccount && phaseNeedsFix ? (
-            <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {(account.rules.current_stage_balance ?? account.initial_balance) !==
-              account.initial_balance ? (
-                <Button variant="subtle" onClick={restorePhaseCapital}>
-                  Reponer al capital inicial ({money(account.initial_balance)})
+          {isFuturesAccount && account.current_stage_index > 0 ? (
+            <div style={{ marginTop: 10 }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {(account.rules.current_stage_balance ?? account.initial_balance) !==
+                account.initial_balance ? (
+                  <Button variant="subtle" onClick={restorePhaseCapital}>
+                    Reponer al capital inicial ({money(account.initial_balance)})
+                  </Button>
+                ) : null}
+                <Button variant="subtle" onClick={fixPhaseData}>
+                  Corregir fase (balance + excluir operaciones anteriores)
                 </Button>
+              </div>
+              {!phaseNeedsFix ? (
+                <p className="muted" style={{ fontSize: 12, margin: '8px 0 0' }}>
+                  ✓ Los datos de esta fase están correctos. Usa «Corregir fase» solo si el balance o
+                  las operaciones no coinciden con lo que esperas.
+                </p>
               ) : null}
-              <Button variant="subtle" onClick={fixPhaseData}>
-                Corregir fase (balance + excluir operaciones anteriores)
-              </Button>
             </div>
           ) : null}
           {canEditStartDate ? (
@@ -442,7 +450,7 @@ export default function StagesPage() {
               <Button variant="primary" sm onClick={() => setCapitalOpen(true)}>
                 + Agregar capital
               </Button>
-              {phaseNeedsFix ? (
+              {account.current_stage_index > 0 ? (
                 <>
                   {(account.rules.current_stage_balance ?? account.initial_balance) !==
                   account.initial_balance ? (
