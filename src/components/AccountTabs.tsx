@@ -76,9 +76,17 @@ export default function AccountTabs() {
 }
 
 // Muestra qué fase está activa en los paneles y permite volver a la actual.
-function PhaseBanner({ account }: { account: { type: string } }) {
+// Aplica a todos los programas con fases: en Fondeo CFD y Futuros la selección
+// de una fase histórica también filtra los paneles, así que sin este aviso no
+// hay forma de saber que se está viendo una fase pasada ni de volver a la actual.
+function PhaseBanner({ account }: { account: { type: string; rules: { type: string } } }) {
   const { activePhase, selectCurrent } = useActivePhase()
-  if (account.type !== 'axi') return null
+  const hasPhases =
+    account.type === 'axi' ||
+    account.rules.type === 'axi' ||
+    account.rules.type === 'futures' ||
+    account.rules.type === 'cfd'
+  if (!hasPhases) return null
   if (!activePhase || activePhase.kind === 'current') return null
   return (
     <div

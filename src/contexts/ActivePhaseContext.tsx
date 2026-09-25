@@ -25,20 +25,20 @@ export function ActivePhaseProvider({ children }: { children: ReactNode }) {
 
   // Cuando cambia la cuenta o la fase actual, volver a la fase actual por defecto
   // (para que los paneles se "reseteeen" al pasar de Seed a Incubation, etc.).
+  //
+  // Solo se resetea cuando cambia de verdad la IDENTIDAD de la fase actual: si
+  // dependiéramos de la cuenta entera, cualquier actualización de datos (p. ej.
+  // un guardado o el realtime) reiniciaría la selección y el Calendario volvería
+  // a la fase actual, dejando a la vista una cuadrícula sin trades.
+  const accountId = account?.id
+  const stageStartKey =
+    account?.rules.type === 'axi' || account?.rules.type === 'futures' || account?.rules.type === 'cfd'
+      ? account?.rules.current_stage_start_date
+      : undefined
   useEffect(() => {
     setActivePhase(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    account?.id,
-    account?.current_stage_index,
-    // Axi Select, Fondeo Futuros y Fondeo CFD definen fecha de inicio de fase: al
-    // cambiar (p. ej. al avanzar de fase) se vuelve a la vista de la fase actual.
-    account?.rules.type === 'axi' ||
-    account?.rules.type === 'futures' ||
-    account?.rules.type === 'cfd'
-      ? account?.rules.current_stage_start_date
-      : undefined,
-  ])
+  }, [accountId, stageStartKey])
 
   // Rango de fechas de la fase actual. Aplica a los programas con reset por fase
   // (Axi Select, Fondeo Futuros y Fondeo CFD): la fase actual arranca en su fecha

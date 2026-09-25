@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useData } from '../contexts/DataContext'
 import { useRouteAccount } from '../contexts/AccountRouteContext'
 import { useActivePhase } from '../contexts/ActivePhaseContext'
@@ -10,13 +10,20 @@ import { Button, EmptyState } from '../components/ui'
 export default function CalendarPage() {
   const { trades, payouts } = useData()
   const account = useRouteAccount()
-  const { tradesForActive } = useActivePhase()
+  const { tradesForActive, activePhase } = useActivePhase()
+  // Identidad de la fase mostrada: cambia al pasar de una fase a otra y sirve
+  // para recolocar el cursor en un mes con datos.
+  const activePhaseKey =
+    activePhase?.kind === 'history' ? `h:${activePhase.label}:${activePhase.startDate}` : 'current'
 
   const [cursor, setCursor] = useState(() => {
     const d = new Date()
     return { year: d.getFullYear(), month: d.getMonth() + 1 }
   })
   const [datePicker, setDatePicker] = useState<string | null>(null)
+  // Mes a mostrar pedido explícitamente (p. ej. al saltar al mes con datos).
+  // Se aplica una vez para no pisar la navegación manual con ‹ ›.
+  const [jumpTo, setJumpTo] = useState<string | null>(null)
 
   // El calendario refleja la fase activa seleccionada (actual o una histórica),
   // igual que el resto de paneles. Para registrar/ver operaciones de otra fase,
@@ -29,6 +36,26 @@ export default function CalendarPage() {
       payouts.filter((p) => p.account_id === account.id),
     )
   }, [account, trades, payouts, tradesForActive])
+
+  // Rango de meses con operaciones en la fase mostrada, para ofrecer un salto
+  // directo: si el cursor quedó en un mes sin trades, el calendario parecería
+  // no tener operaciones aunque la fase sí las tenga.
+  const days = analysis?.days ?? []
+  const lastDay = days.length ? days[days.length - 1].date.slice(0, 7) : null
+
+  // Al cambiar de fase (o de cuenta) se coloca el cursor en el mes de la última
+  // operación de esa fase, que es lo último que el usuario quiere revisar. Si la
+  // fase no tiene operaciones, se mantiene el mes actual.
+  useEffect(() => {
+    if (lastDay) setJumpTo(lastDay)
+  }, [lastDay, account?.id, activePhaseKey])
+
+  useEffect(() => {
+    if (!jumpTo) return
+    const [y, m] = jumpTo.split('-')
+    setCursor({ year: Number(y), month: Number(m) })
+    setJumpTo(null)
+  }, [jumpTo])
 
   if (!account || !analysis) {
     return (
@@ -120,6 +147,14 @@ export default function CalendarPage() {
               >
                 Hoy
               </Button>
+              {/* Atajo al mes con la última operación de la fase mostrada: evita
+                  la sensación de calendario vacío al ver una fase sin actividad
+                  en el mes en curso. */}
+              {lastDay && `${year}-${String(month).padStart(2, '0')}` !== lastDay ? (
+                <Button variant="subtle" sm onClick={() => setJumpTo(lastDay)}>
+                  Última operación
+                </Button>
+              ) : null}
             </div>
             <div className="calendar-total" style={{ color: monthTotal >= 0 ? 'var(--green)' : 'var(--red)' }}>
               {signedMoney(monthTotal)}
